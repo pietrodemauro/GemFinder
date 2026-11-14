@@ -108,9 +108,29 @@ GemFinder/
   - Integrazione trasparente nel `gemfinder-cli`: le ricerche interrogano automaticamente il demone in esecuzione se presente per risposte istantanee.
   - Suite unitaria `test_daemon` integrata in CTest con 100% test superati.
 
-### Step 6: Client GUI Desktop (Spotlight-like) [PROSSIMO PASSO]
-* **Obiettivo:** Interfaccia utente scattante (< 50ms) attivabile via scorciatoia da tastiera globale.
+### Step 6: Client GUI Desktop (Spotlight-like con Raggruppamento Modale) [COMPLETATO]
+* **Obiettivo:** Interfaccia utente scattante (< 50ms) con raggruppamento esplicito dei risultati per testo, immagini e audio.
+* **Stato:** ✅ Completato il 14/11/2026.
+* **Risultati:**
+  - `MainWindow`: Finestra desktop moderna flottante (in stile Spotlight/Raycast dark theme `#181926`) realizzata in C++20 nativo con **Qt 6 Widgets**.
+  - **Raggruppamento Risultati per Modalità:** Implementata partizione e visualizzazione dei risultati raggruppati in 3 macrosezioni distinte:
+    1. 📄 **Documenti & Testo**: anteprima snippet formattata, badge riga d'inizio (`Riga {start_offset}`), punteggio RRF e percorsi.
+    2. 🖼️ **Immagini**: generazione al volo di thumbnail scalate e ritagliate con bordi arrotondati (`QPixmap` smooth bilinear), dimensioni e badge RRF.
+    3. 🎵 **Audio & Registrazioni**: visualizzazione durata e timestamp del chunk (`⏱ mm:ss`), offset temporale e badge RRF.
+  - Barra filtri rapida a pulsanti a pillola: `🔘 Tutti (Raggruppati)`, `📄 Testo (N)`, `🖼️ Immagini (N)`, `🎵 Audio (N)`.
+  - **Ricerca Multimodale Unificata**:
+    - Input testuale reattivo con debouncer a 150ms.
+    - Pulsanti `🖼️ Immagine...` e `🎵 Audio...` per caricamento file query da file dialog.
+    - **Drag & Drop Integrato:** trascinando qualsiasi immagine o file audio nella finestra viene avviata istantaneamente la ricerca per similarità multimodale.
+  - **Asincronia & IPC Reattivo:** `SearchWorker` in thread dedicato `QThread` che interroga `gemfinder-daemon` via Unix Socket (`/tmp/gemfinder.sock`) in sub-millisecondo, con fallback trasparente al motore locale `SearchEngine` in assenza del demone.
+  - Azioni contestuali integrate: doppio clic o tasto Invio per aprire il file nativamente con l'applicazione di sistema predefinita (`QDesktopServices`), menu contestuale per apertura cartella contenitrice, copia percorso assoluto e copia snippet.
+  - Suite di test `test_gui` integrata in CTest con validazione headless offscreen (100% superati).
+
+---
+
+### Step 7: Benchmark Prestazionali, Ottimizzazioni e Hardening Finale [PROSSIMO PASSO]
+* **Obiettivo:** Validazione complessiva delle prestazioni (latenze < 10ms, RAM, throughput di indicizzazione) e packaging finale.
 * **Azioni:**
-  1. Creazione finestra flottante minimale (Dear ImGui con backend GLFW / OpenGL / Vulkan).
-  2. Barra di ricerca unificata (input testuale, drag-and-drop di immagini/audio, pulsante cattura microfono).
-  3. Rendering dei risultati con evidenziazione del match e indicazione precisa della pagina o del minuto temporale.
+  1. Suite di benchmark automatizzata per indicizzazione di grandi dataset e query concorrenti.
+  2. Profiling della memoria RAM e VRAM (mmap per USearch e quantization weights).
+  3. Script di avvio globale (systemd user service per il daemon, scorciatoia da tastiera globale per la GUI).

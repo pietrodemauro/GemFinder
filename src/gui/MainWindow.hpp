@@ -1,0 +1,92 @@
+#pragma once
+
+#include "common/Types.hpp"
+#include "gui/SearchWorker.hpp"
+#include "gui/ResultCard.hpp"
+#include "gui/CategoryHeader.hpp"
+
+#include <QMainWindow>
+#include <QLineEdit>
+#include <QPushButton>
+#include <QLabel>
+#include <QScrollArea>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
+#include <QTimer>
+#include <QButtonGroup>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <vector>
+
+namespace gemfinder {
+
+enum class DisplayFilter {
+    AllGrouped,
+    TextOnly,
+    ImageOnly,
+    AudioOnly
+};
+
+class MainWindow : public QMainWindow {
+    Q_OBJECT
+
+public:
+    explicit MainWindow(QWidget* parent = nullptr);
+    ~MainWindow() override;
+
+protected:
+    void keyPressEvent(QKeyEvent* event) override;
+    void dragEnterEvent(QDragEnterEvent* event) override;
+    void dropEvent(QDropEvent* event) override;
+
+private slots:
+    void onSearchTextChanged(const QString& text);
+    void onDebounceTimeout();
+    void onSearchCompleted(const IpcResponse& response);
+    void onSearchError(const QString& error_msg);
+    void onDaemonStatusChanged(bool is_running);
+    void onSelectImageQuery();
+    void onSelectAudioQuery();
+    void onFilterChanged(DisplayFilter filter);
+
+private:
+    void setupUi();
+    void setupStyles();
+    void triggerSearch();
+    void renderResults();
+    void clearResultsLayout();
+
+    // UI elements
+    QLineEdit* search_input_{nullptr};
+    QPushButton* btn_image_search_{nullptr};
+    QPushButton* btn_audio_search_{nullptr};
+    QLabel* daemon_status_badge_{nullptr};
+    QLabel* stats_bar_{nullptr};
+
+    // Filter Buttons
+    QPushButton* btn_tab_all_{nullptr};
+    QPushButton* btn_tab_text_{nullptr};
+    QPushButton* btn_tab_image_{nullptr};
+    QPushButton* btn_tab_audio_{nullptr};
+
+    // Results container
+    QScrollArea* scroll_area_{nullptr};
+    QWidget* results_container_{nullptr};
+    QVBoxLayout* results_layout_{nullptr};
+
+    // Worker & State
+    SearchWorker* search_worker_{nullptr};
+    QTimer* debounce_timer_{nullptr};
+    DisplayFilter current_filter_{DisplayFilter::AllGrouped};
+
+    // Stored results partitioned by modality
+    std::vector<SearchResult> all_results_;
+    std::vector<SearchResult> text_results_;
+    std::vector<SearchResult> image_results_;
+    std::vector<SearchResult> audio_results_;
+
+    double last_latency_ms_{0.0};
+    QString active_query_mode_{"Testo"};
+};
+
+} // namespace gemfinder

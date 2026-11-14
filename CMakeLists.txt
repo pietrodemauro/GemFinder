@@ -28,6 +28,11 @@ endif()
 
 # Find external dependencies
 find_package(SQLite3 REQUIRED)
+find_package(Qt6 COMPONENTS Widgets REQUIRED)
+
+set(CMAKE_AUTOMOC ON)
+set(CMAKE_AUTORCC ON)
+set(CMAKE_AUTOUIC ON)
 
 find_path(XXHASH_INCLUDE_DIR NAMES xxhash.h)
 find_library(XXHASH_LIBRARY NAMES xxhash)
@@ -149,6 +154,24 @@ target_link_libraries(gemfinder-daemon PRIVATE
     gemfinder_daemon_lib
 )
 
+# GUI executable
+add_executable(gemfinder-gui
+    src/gui/SearchResultItem.hpp
+    src/gui/ResultCard.hpp
+    src/gui/ResultCard.cpp
+    src/gui/CategoryHeader.hpp
+    src/gui/CategoryHeader.cpp
+    src/gui/SearchWorker.hpp
+    src/gui/SearchWorker.cpp
+    src/gui/MainWindow.hpp
+    src/gui/MainWindow.cpp
+    src/gui/main.cpp
+)
+target_link_libraries(gemfinder-gui PRIVATE
+    gemfinder_daemon_lib
+    Qt6::Widgets
+)
+
 # Tests
 enable_testing()
 
@@ -187,8 +210,26 @@ target_link_libraries(test_daemon PRIVATE
     gemfinder_daemon_lib
 )
 
+add_executable(test_gui
+    tests/test_gui.cpp
+    src/gui/SearchResultItem.hpp
+    src/gui/ResultCard.hpp
+    src/gui/ResultCard.cpp
+    src/gui/CategoryHeader.hpp
+    src/gui/CategoryHeader.cpp
+    src/gui/SearchWorker.hpp
+    src/gui/SearchWorker.cpp
+    src/gui/MainWindow.hpp
+    src/gui/MainWindow.cpp
+)
+target_link_libraries(test_gui PRIVATE
+    gemfinder_daemon_lib
+    Qt6::Widgets
+)
+
 add_test(NAME StorageLayerTest COMMAND test_storage)
 add_test(NAME PreprocessorTest COMMAND test_preprocessor)
 add_test(NAME InferenceEngineTest COMMAND test_inference)
 add_test(NAME EngineTest COMMAND test_engine)
 add_test(NAME DaemonTest COMMAND test_daemon)
+add_test(NAME GuiTest COMMAND test_gui)

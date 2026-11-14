@@ -226,9 +226,10 @@ Quando l'utente inserisce un input nella barra di ricerca (testo, audio, immagin
 * [x] Esporre il server IPC locale (Unix Socket / Named Pipe).
 
 ### Fase 5: Barra di Ricerca (GUI) ed Esperienza Utente
-* [ ] Creare l'interfaccia stile Spotlight in `Dear ImGui` o `Qt6`.
-* [ ] Implementare il Drag & Drop di file (immagini/audio) direttamente dentro la barra di ricerca e il pulsante "Registra Audio" per cercare tramite voce o suoni ambientali.
-* [ ] Visualizzare le anteprime dei risultati con evidenziazione del testo o mini-player per saltare direttamente al secondo esatto del file audio/video trovato.
+* [x] Creare l'interfaccia stile Spotlight in `Qt6` (`gemfinder-gui`) con tema scuro e design moderno flottante.
+* [x] Raggruppamento esplicito dei risultati di ricerca per appartenenza a Testo, Immagini e Audio con relative sezioni e schede di navigazione rapida.
+* [x] Implementare il Drag & Drop di file (immagini/audio) direttamente dentro la finestra e pulsanti di caricamento query multimodale.
+* [x] Visualizzare le anteprime dei risultati con thumbnail dinamica per le immagini, evidenziazione delle righe per il testo e indicazione del minutaggio preciso per i file audio.
 
 ---
 
