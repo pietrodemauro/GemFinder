@@ -40,6 +40,7 @@ endif()
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/usearch/include
     ${SQLite3_INCLUDE_DIRS}
     ${XXHASH_INCLUDE_DIR}
 )
@@ -49,12 +50,23 @@ add_library(gemfinder_common INTERFACE)
 target_include_directories(gemfinder_common INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party
-    ${SQLite3_INCLUDE_DIRS}
-    ${XXHASH_INCLUDE_DIR}
+    SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/usearch/include
+    SYSTEM ${SQLite3_INCLUDE_DIRS}
+    SYSTEM ${XXHASH_INCLUDE_DIR}
 )
 target_link_libraries(gemfinder_common INTERFACE
     ${SQLite3_LIBRARIES}
     ${XXHASH_LIBRARY}
+)
+
+# gemfinder_storage library
+add_library(gemfinder_storage STATIC
+    src/storage/Database.cpp
+    src/storage/VectorStore.cpp
+    src/storage/StorageManager.cpp
+)
+target_link_libraries(gemfinder_storage PUBLIC
+    gemfinder_common
 )
 
 # CLI executable
@@ -62,8 +74,17 @@ add_executable(gemfinder-cli
     src/cli/main.cpp
 )
 target_link_libraries(gemfinder-cli PRIVATE
-    gemfinder_common
+    gemfinder_storage
 )
 
-# Enable CTest
+# Tests
 enable_testing()
+
+add_executable(test_storage
+    tests/test_storage.cpp
+)
+target_link_libraries(test_storage PRIVATE
+    gemfinder_storage
+)
+
+add_test(NAME StorageLayerTest COMMAND test_storage)

@@ -45,33 +45,26 @@ GemFinder/
 
 ## 3. Fasi Operative Dettagliate
 
-### Step 0: Setup del Progetto e Build System (Fondamenta)
+### Step 0: Setup del Progetto e Build System (Fondamenta) [COMPLETATO]
 * **Obiettivo:** Creare lo scheletro modulare del progetto compilabile con CMake in C++20.
-* **Azioni:**
-  1. Creare la struttura completa delle directory `src/`, `third_party/`, `tests/`.
-  2. Predisporre `.gitignore` per ignorare directory di build, database `.db`, indici vettoriali e modelli `.gguf`.
-  3. Configurare `CMakeLists.txt` radice con C++20, flag di ottimizzazione (`-O3 -march=native`), warning strict (`-Wall -Wextra -Wpedantic`).
-  4. Integrare le dipendenze header-only in `third_party/` (`usearch`, `xxHash`, `stb`, `miniaudio`).
-  5. Scrivere una libreria iniziale `gemfinder_common` e un primo test di fumo (`gemfinder_cli --version`) per validare il build system.
+* **Stato:** ✅ Completato il 14/11/2026.
+* **Risultati:**
+  - Repository git inizializzato (branch `main`), configurato `.gitignore`.
+  - Struttura directory (`src/common`, `storage`, `preprocessor`, `inference`, `engine`, `daemon`, `cli`, `gui`).
+  - Standard C++20 con CMake, flags `-Wall -Wextra -Wpedantic -O3 -march=native`.
+  - Moduli iniziali: `Types.hpp`, `Hasher.hpp` (xxHash64 con streaming), `Logger.hpp`, `Version.hpp`.
+  - CLI iniziale `gemfinder-cli` compilata e funzionante (`--info`, `--hash`, `--version`).
 
-### Step 1: Storage Layer & Ricerca Ibrida (SQLite3 + USearch)
+### Step 1: Storage Layer & Ricerca Ibrida (SQLite3 + USearch) [COMPLETATO]
 * **Obiettivo:** Persistenza su disco dei metadati dei file, frammentazione (chunking) e indicizzazione vettoriale scalabile.
-* **Azioni:**
-  1. Creare la classe `Database`:
-     - Apertura SQLite in modalità WAL (*Write-Ahead Logging*).
-     - Creazione tabelle relazionali: `files`, `chunks`.
-     - Creazione tabella virtuale FTS5 `chunks_fts` per ricerca esatta full-text.
-  2. Creare la classe `VectorStore`:
-     - Wrapper attorno all'indice HNSW denso di `USearch`.
-     - Supporto per metriche cosinuso/prodotto scalare a 256 dimensioni.
-     - Persistenza su disco e caricamento memory-mapped (`mmap`).
-  3. Creare la classe `StorageManager`:
-     - Associazione bidirezionale atomica `chunk_id <-> vector_key`.
-     - Inserimento/aggiornamento file, gestione rimozioni e transazioni.
-     - Funzione di ranking ibrido **RRF (Reciprocal Rank Fusion)** per combinare i rank vettoriali e i punteggi BM25 FTS5.
-  4. Test unitari: indicizzazione di documenti sintetici e verifica della query ibrida.
+* **Stato:** ✅ Completato il 14/11/2026.
+* **Risultati:**
+  - `Database`: SQLite3 in modalità WAL, tabelle `files`, `chunks`, e tabella virtuale `chunks_fts` (FTS5 BM25 con snippet e unicode61).
+  - `VectorStore`: integrazione HNSW `USearch` (unum-cloud/usearch v2.26) a 256 dimensioni (metrica Cosine / float32) con persistenza e zero-latency `mmap`.
+  - `StorageManager`: sincronizzazione atomica tra SQLite e USearch (`chunk_id <-> vector_key`), aggiornamento incrementale e algoritmo di fusione **RRF (Reciprocal Rank Fusion)** per ricerca ibrida.
+  - Test suite unitaria `tests/test_storage.cpp` (FTS5, VectorStore, RRF Hybrid Search) integrata in CTest e superata al 100%.
 
-### Step 2: Pipeline di Pre-processing Multimodale
+### Step 2: Pipeline di Pre-processing Multimodale [PROSSIMO PASSO]
 * **Obiettivo:** Trasformare file su disco in strutture tokenizzabili o tensori pronti per l'inferenza.
 * **Azioni:**
   1. **Modulo Testo/Codice (`TextPreprocessor`):**

@@ -206,14 +206,14 @@ Quando l'utente inserisce un input nella barra di ricerca (testo, audio, immagin
 ## 9. Roadmap di Sviluppo Step-by-Step
 
 ### Fase 1: Proof of Concept (CLI e Inferenza)
-* [ ] Configurare il progetto CMake in C++20.
+* [x] Configurare il progetto CMake in C++20.
 * [ ] Integrare `llama.cpp` (o `LiteRT-LM`) e scaricare i pesi quantizzati di **EmbeddingGemma 2**.
 * [ ] Scrivere un tool a riga di comando che prende un testo, un'immagine `.jpg` (tramite `stb_image`) e un file `.wav` (tramite `miniaudio`), calcola gli embedding a 256 dimensioni e stampa la matrice di similarità coseno tra i tre elementi.
 
 ### Fase 2: Storage Layer (SQLite + USearch)
-* [ ] Integrare `sqlite3.c` e `usearch/index_dense.hpp` nel progetto.
-* [ ] Implementare la classe `IndexManager` in C++ che gestisce le transazioni: inserimento di un file, salvataggio dei chunk in SQLite, inserimento dei vettori in USearch e salvataggio/caricamento tramite `mmap`.
-* [ ] Implementare l'hashing veloce dei file con `xxHash` per distinguere le modifiche reali dai semplici spostamenti di file.
+* [x] Integrare `sqlite3.c` e `usearch/index_dense.hpp` nel progetto.
+* [x] Implementare la classe `IndexManager` in C++ che gestisce le transazioni: inserimento di un file, salvataggio dei chunk in SQLite, inserimento dei vettori in USearch e salvataggio/caricamento tramite `mmap`.
+* [x] Implementare l'hashing veloce dei file con `xxHash` per distinguere le modifiche reali dai semplici spostamenti di file.
 
 ### Fase 3: Crawler Iniziale e Pre-processori
 * [ ] Costruire lo scanner ricorsivo (`std::filesystem::recursive_directory_iterator`) con il filtro di esclusione delle directory di sistema.
