@@ -1,3 +1,7 @@
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+#include <cassert>
 #include "preprocessor/TextPreprocessor.hpp"
 #include "preprocessor/ImagePreprocessor.hpp"
 #include "preprocessor/AudioPreprocessor.hpp"

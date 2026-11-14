@@ -1,6 +1,9 @@
+#ifdef NDEBUG
+#undef NDEBUG
+#endif
+#include <cassert>
 #include "storage/StorageManager.hpp"
 #include "common/Logger.hpp"
-#include <cassert>
 #include <iostream>
 #include <cmath>
 #include <numeric>

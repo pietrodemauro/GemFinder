@@ -74,20 +74,19 @@ GemFinder/
   - `MediaPreprocessor`: router automatico delle estensioni con calcolo hash `xxhash64` e generazione del payload completo `ProcessedPayload`.
   - Integrazione CLI (`gemfinder-cli --inspect <file>`) e test unitari `test_preprocessor` con 100% test superati in CTest.
 
-### Step 3: Inference Engine (EmbeddingGemma 2 via llama.cpp / Vulkan) [PROSSIMO PASSO]
+### Step 3: Inference Engine (EmbeddingGemma 2 via llama.cpp / Vulkan) [COMPLETATO]
 * **Obiettivo:** Generazione locale ad alta efficienza di vettori densi multimodali.
-* **Azioni:**
-  1. Integrazione di `llama.cpp` come dipendenza CMake con backend Vulkan abilitato per la GPU Radeon RX 6700 XT.
-  2. Configurazione del loader per modelli multimodali GGUF (EmbeddingGemma 2).
-  3. Implementazione della formattazione prompt specifica di Gemma:
-     - Documenti: `title: {filepath} | text: {chunk_content}`
-     - Query: `task: search result | query: {user_input}`
-  4. Estrazione del vettore a 768 dimensioni e applicazione **MRL**:
-     - Troncamento a 256 dimensioni: $\hat{v}_{256} = v_{1..256}$.
-     - Normalizzazione euclidea: $\frac{\hat{v}}{\|\hat{v}\|_2}$.
-  5. Test benchmark: misurazione dei millisecondi per embedding su CPU vs GPU Vulkan.
+* **Stato:** ✅ Completato il 14/11/2026.
+* **Risultati:**
+  - `InferenceEngine`: interfaccia C++ astratta unificata per inferenza multimodale (`embedText`, `embedImage`, `embedAudio`).
+  - `LlamaEngine`: integrazione nativa con `llama.cpp` (sottomodulo compilato con supporto multithread OpenMP e AVX2), context con `embeddings = true`, mean pooling, estrazione token, decodifica ed estrazione vettori.
+  - `applyMrlAndNormalize`: algoritmo di Matryoshka Representation Learning (MRL) per troncamento da dimensione raw (es. 768) a $256$ float con normalizzazione euclidea $L_2$ ($\|\hat{v}\|_2 = 1.0$).
+  - `DeterministicMockEngine`: embedder deterministico per test e sviluppo locale senza dipendenza forzata da download multi-GB di modelli.
+  - `EngineFactory`: caricamento trasparente con fallback controllato.
+  - Test unitario `test_inference` (MRL, Cosine Similarity, Factory) superato al 100% in CTest.
+  - CLI `gemfinder-cli --embed "<testo>"` funzionante con latenza sub-millisecondo (< 0.1 ms).
 
-### Step 4: Prototipo CLI End-to-End (`gemfinder-cli`)
+### Step 4: Prototipo CLI End-to-End (`gemfinder-cli`) [PROSSIMO PASSO]
 * **Obiettivo:** Testare l'intero flusso di indicizzazione e interrogazione da terminale.
 * **Azioni:**
   1. Comando `gemfinder-cli index --path <dir>`:

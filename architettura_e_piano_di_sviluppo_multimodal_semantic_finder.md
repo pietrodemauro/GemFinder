@@ -207,8 +207,8 @@ Quando l'utente inserisce un input nella barra di ricerca (testo, audio, immagin
 
 ### Fase 1: Proof of Concept (CLI e Inferenza)
 * [x] Configurare il progetto CMake in C++20.
-* [ ] Integrare `llama.cpp` (o `LiteRT-LM`) e scaricare i pesi quantizzati di **EmbeddingGemma 2**.
-* [ ] Scrivere un tool a riga di comando che prende un testo, un'immagine `.jpg` (tramite `stb_image`) e un file `.wav` (tramite `miniaudio`), calcola gli embedding a 256 dimensioni e stampa la matrice di similarità coseno tra i tre elementi.
+* [x] Integrare `llama.cpp` (o `LiteRT-LM`) e scaricare i pesi quantizzati di **EmbeddingGemma 2**.
+* [x] Scrivere un tool a riga di comando che prende un testo, un'immagine `.jpg` (tramite `stb_image`) e un file `.wav` (tramite `miniaudio`), calcola gli embedding a 256 dimensioni e stampa la matrice di similarità coseno tra i tre elementi.
 
 ### Fase 2: Storage Layer (SQLite + USearch)
 * [x] Integrare `sqlite3.c` e `usearch/index_dense.hpp` nel progetto.

@@ -36,6 +36,15 @@ if(NOT XXHASH_INCLUDE_DIR OR NOT XXHASH_LIBRARY)
     message(FATAL_ERROR "xxhash not found. Please install xxhash development package.")
 endif()
 
+# llama.cpp subproject configuration
+set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
+set(GGML_CCACHE OFF CACHE BOOL "" FORCE)
+set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
+
+add_subdirectory(third_party/llama.cpp EXCLUDE_FROM_ALL)
+
 # Common include directories
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src
@@ -43,6 +52,8 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/usearch/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/miniaudio
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/ggml/include
     ${SQLite3_INCLUDE_DIRS}
     ${XXHASH_INCLUDE_DIR}
 )
@@ -55,6 +66,8 @@ target_include_directories(gemfinder_common INTERFACE
     SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/usearch/include
     SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
     SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/miniaudio
+    SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/include
+    SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/ggml/include
     SYSTEM ${SQLite3_INCLUDE_DIRS}
     SYSTEM ${XXHASH_INCLUDE_DIR}
 )
@@ -85,6 +98,18 @@ target_link_libraries(gemfinder_preprocessor PUBLIC
     gemfinder_common
 )
 
+# gemfinder_inference library
+add_library(gemfinder_inference STATIC
+    src/inference/MockEngine.cpp
+    src/inference/LlamaEngine.cpp
+    src/inference/EngineFactory.cpp
+)
+target_link_libraries(gemfinder_inference PUBLIC
+    gemfinder_common
+    llama
+    ggml
+)
+
 # CLI executable
 add_executable(gemfinder-cli
     src/cli/main.cpp
@@ -92,6 +117,7 @@ add_executable(gemfinder-cli
 target_link_libraries(gemfinder-cli PRIVATE
     gemfinder_storage
     gemfinder_preprocessor
+    gemfinder_inference
 )
 
 # Tests
@@ -111,5 +137,13 @@ target_link_libraries(test_preprocessor PRIVATE
     gemfinder_preprocessor
 )
 
+add_executable(test_inference
+    tests/test_inference.cpp
+)
+target_link_libraries(test_inference PRIVATE
+    gemfinder_inference
+)
+
 add_test(NAME StorageLayerTest COMMAND test_storage)
 add_test(NAME PreprocessorTest COMMAND test_preprocessor)
+add_test(NAME InferenceEngineTest COMMAND test_inference)
