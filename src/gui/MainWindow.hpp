@@ -31,7 +31,7 @@ class MainWindow : public QMainWindow {
     Q_OBJECT
 
 public:
-    explicit MainWindow(std::optional<fs::path> model_path = std::nullopt, QWidget* parent = nullptr);
+    explicit MainWindow(std::optional<fs::path> model_path = std::nullopt, int n_threads = 0, QWidget* parent = nullptr);
     ~MainWindow() override;
 
 protected:

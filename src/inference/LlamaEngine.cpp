@@ -9,9 +9,23 @@
 
 namespace gemfinder {
 
+namespace {
+
+int resolveDefaultThreads(int n_threads) {
+    if (n_threads > 0) {
+        return n_threads;
+    }
+    unsigned int hw = std::thread::hardware_concurrency();
+    if (hw <= 1) return 1;
+    // Limit to half of maximum cores by default to keep the desktop responsive
+    return static_cast<int>(hw / 2);
+}
+
+} // namespace
+
 LlamaEngine::LlamaEngine(size_t target_dimension, int n_threads)
     : target_dim_(target_dimension),
-      n_threads_(n_threads > 0 ? n_threads : static_cast<int>(std::max(1u, std::thread::hardware_concurrency()))) {
+      n_threads_(resolveDefaultThreads(n_threads)) {
     // Suppress verbose llama.cpp debug/info spam on stderr
     llama_log_set([](ggml_log_level level, const char* text, void* user_data) {
         (void)user_data;
@@ -20,6 +34,10 @@ LlamaEngine::LlamaEngine(size_t target_dimension, int n_threads)
         }
     }, nullptr);
     llama_backend_init();
+
+    Logger::info("LlamaEngine: allocati " + std::to_string(n_threads_) +
+                 " thread CPU (totale core di sistema: " +
+                 std::to_string(std::thread::hardware_concurrency()) + ")");
 }
 
 LlamaEngine::~LlamaEngine() {

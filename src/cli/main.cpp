@@ -19,17 +19,19 @@ namespace fs = std::filesystem;
 void printUsage(std::string_view progName) {
     std::cout << progName << " - " << gemfinder::kProjectDescription << "\n\n"
               << "Uso:\n"
-              << "  " << progName << " index <cartella> [--model <modello.gguf>] [--db <path>] [--force]\n"
-              << "  " << progName << " search <query_testo> [--limit <N>] [--model <modello.gguf>] [--db <path>]\n"
-              << "  " << progName << " search --image <file.jpg> [--limit <N>] [--model <modello.gguf>] [--db <path>]\n"
-              << "  " << progName << " search --audio <file.wav> [--limit <N>] [--model <modello.gguf>] [--db <path>]\n"
+              << "  " << progName << " index <cartella> [--model <modello.gguf>] [--threads <N>] [--db <path>] [--force]\n"
+              << "  " << progName << " search <query_testo> [--limit <N>] [--threads <N>] [--model <modello.gguf>] [--db <path>]\n"
+              << "  " << progName << " search --image <file.jpg> [--limit <N>] [--threads <N>] [--model <modello.gguf>] [--db <path>]\n"
+              << "  " << progName << " search --audio <file.wav> [--limit <N>] [--threads <N>] [--model <modello.gguf>] [--db <path>]\n"
               << "  " << progName << " stats [--db <path>]\n"
               << "  " << progName << " list [--db <path>]       Elenca tutti i file registrati nell'indice\n"
               << "  " << progName << " inspect <file>           Pre-processa un file e mostra i chunk estratti\n"
-              << "  " << progName << " embed <testo> [--model <modello.gguf>] Calcola l'embedding di un testo\n"
+              << "  " << progName << " embed <testo> [--model <modello.gguf>] [--threads <N>] Calcola l'embedding di un testo\n"
               << "  " << progName << " hash <file>              Calcola l'hash xxHash64 di un file\n"
               << "  " << progName << " --info                   Mostra le librerie e lo stato del sistema\n"
-              << "  " << progName << " --version                Mostra la versione del software\n";
+              << "  " << progName << " --version                Mostra la versione del software\n\n"
+              << "Opzioni CPU e Risorse:\n"
+              << "  --threads, -t <N>    Imposta manualmente il numero di thread/core CPU (default: metà dei core massimi)\n";
 }
 
 int main(int argc, char* argv[]) {
@@ -112,15 +114,19 @@ int main(int argc, char* argv[]) {
     if ((command == "embed" || command == "--embed") && argc >= 3) {
         std::string_view text = argv[2];
         std::optional<fs::path> model_path = std::nullopt;
+        int n_threads = 0;
         for (int i = 3; i < argc; ++i) {
             if (std::string_view(argv[i]) == "--model" && i + 1 < argc) {
                 model_path = argv[i + 1];
+                i++;
+            } else if ((std::string_view(argv[i]) == "--threads" || std::string_view(argv[i]) == "-t") && i + 1 < argc) {
+                try { n_threads = std::stoi(argv[i + 1]); } catch (...) {}
                 i++;
             }
         }
 
         auto start_t = std::chrono::high_resolution_clock::now();
-        auto engine = gemfinder::EngineFactory::createEngine(model_path);
+        auto engine = gemfinder::EngineFactory::createEngine(model_path, gemfinder::kEmbeddingDim, n_threads);
         auto vec = engine->embedText(text);
         auto end_t = std::chrono::high_resolution_clock::now();
         double elapsed_ms = std::chrono::duration<double, std::milli>(end_t - start_t).count();
@@ -162,6 +168,13 @@ int main(int argc, char* argv[]) {
     fs::path vec_path = db_path.parent_path() / (db_path.stem().string() + ".usearch");
     std::optional<fs::path> model_path = getOption("--model");
 
+    int n_threads = 0;
+    if (auto t_opt = getOption("--threads")) {
+        try { n_threads = std::stoi(*t_opt); } catch (...) {}
+    } else if (auto t_opt2 = getOption("-t")) {
+        try { n_threads = std::stoi(*t_opt2); } catch (...) {}
+    }
+
     // Command: index <directory>
     if (command == "index" && argc >= 3) {
         fs::path target_dir = argv[2];
@@ -173,7 +186,7 @@ int main(int argc, char* argv[]) {
         bool force = hasFlag("--force");
 
         gemfinder::Logger::info("Inizializzazione motore di ricerca per l'indicizzazione...");
-        auto inf = gemfinder::EngineFactory::createEngine(model_path);
+        auto inf = gemfinder::EngineFactory::createEngine(model_path, gemfinder::kEmbeddingDim, n_threads);
         gemfinder::SearchEngine engine(db_path, vec_path, std::move(inf));
         if (!engine.initialize()) {
             return 1;
@@ -239,7 +252,7 @@ int main(int argc, char* argv[]) {
                 return 1;
             }
         } else {
-            auto inf = gemfinder::EngineFactory::createEngine(model_path);
+            auto inf = gemfinder::EngineFactory::createEngine(model_path, gemfinder::kEmbeddingDim, n_threads);
             gemfinder::SearchEngine engine(db_path, vec_path, std::move(inf));
             if (!engine.initialize()) {
                 return 1;
@@ -287,7 +300,7 @@ int main(int argc, char* argv[]) {
 
     // Command: stats
     if (command == "stats") {
-        auto inf = gemfinder::EngineFactory::createEngine(model_path);
+        auto inf = gemfinder::EngineFactory::createEngine(model_path, gemfinder::kEmbeddingDim, n_threads);
         gemfinder::SearchEngine engine(db_path, vec_path, std::move(inf));
         if (!engine.initialize()) {
             return 1;

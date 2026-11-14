@@ -10,10 +10,13 @@
 
 int main(int argc, char* argv[]) {
     std::optional<std::filesystem::path> model_path = std::nullopt;
+    int n_threads = 0;
     for (int i = 1; i < argc; ++i) {
         std::string_view arg = argv[i];
         if (arg == "--model" && i + 1 < argc) {
             model_path = argv[++i];
+        } else if ((arg == "--threads" || arg == "-t") && i + 1 < argc) {
+            try { n_threads = std::stoi(argv[++i]); } catch (...) {}
         }
     }
 
@@ -30,7 +33,7 @@ int main(int argc, char* argv[]) {
     font.setPointSize(10);
     app.setFont(font);
 
-    gemfinder::MainWindow window(model_path);
+    gemfinder::MainWindow window(model_path, n_threads);
     window.show();
 
     return app.exec();

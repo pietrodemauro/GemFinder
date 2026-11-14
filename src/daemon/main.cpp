@@ -28,6 +28,7 @@ int main(int argc, char* argv[]) {
     fs::path socket_path = gemfinder::kDefaultSocketPath;
     std::optional<fs::path> model_path = std::nullopt;
     std::vector<fs::path> watch_dirs;
+    int n_threads = 0;
 
     for (int i = 1; i < argc; ++i) {
         std::string_view arg = argv[i];
@@ -37,6 +38,8 @@ int main(int argc, char* argv[]) {
             socket_path = argv[++i];
         } else if (arg == "--model" && i + 1 < argc) {
             model_path = argv[++i];
+        } else if ((arg == "--threads" || arg == "-t") && i + 1 < argc) {
+            try { n_threads = std::stoi(argv[++i]); } catch (...) {}
         } else if (arg == "--watch" && i + 1 < argc) {
             watch_dirs.emplace_back(argv[++i]);
         }
@@ -47,7 +50,7 @@ int main(int argc, char* argv[]) {
     gemfinder::Logger::info("Avvio di " + std::string(gemfinder::kProjectName) +
                             "-daemon (v" + std::string(gemfinder::kVersion) + ")...");
 
-    auto inference = gemfinder::EngineFactory::createEngine(model_path);
+    auto inference = gemfinder::EngineFactory::createEngine(model_path, gemfinder::kEmbeddingDim, n_threads);
     auto engine = std::make_unique<gemfinder::SearchEngine>(db_path, vec_path, std::move(inference));
 
     if (!engine->initialize()) {

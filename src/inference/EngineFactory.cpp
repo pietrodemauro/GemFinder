@@ -7,11 +7,12 @@ namespace gemfinder {
 
 std::unique_ptr<InferenceEngine> EngineFactory::createEngine(
     const std::optional<fs::path>& model_path,
-    size_t target_dimension
+    size_t target_dimension,
+    int n_threads
 ) {
     if (model_path.has_value() && !model_path->empty()) {
         if (fs::exists(*model_path)) {
-            auto llama = std::make_unique<LlamaEngine>(target_dimension);
+            auto llama = std::make_unique<LlamaEngine>(target_dimension, n_threads);
             if (llama->loadModel(*model_path)) {
                 return llama;
             }

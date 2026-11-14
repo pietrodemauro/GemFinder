@@ -101,8 +101,19 @@ Prima di avviare le ricerche, esegui una prima scansione delle cartelle che desi
 
 ```bash
 ./build/gemfinder-cli index ~/Documents ~/Pictures \
-  --model ~/.local/share/gemfinder/models/embeddinggemma-2-2b-q8_0.gguf
+  --model models/embeddinggemma-2.gguf
 ```
+
+> **Gestione Intelligente della CPU:** Di default, GemFinder limita l'uso della CPU al **50% dei core massimi** (es. 8 thread su una CPU a 16 thread come AMD Ryzen 7 5800X), lasciando il computer perfettamente fluido e reattivo per le altre attività.
+>
+> Se desideri allocare manualmente un numero specifico di core (o sbloccarli tutti al 100%), usa il flag `--threads <N>` o `-t <N>`:
+> ```bash
+> # Usa solo 4 core (ancora più silenzioso):
+> ./build/gemfinder-cli index ~/Documents --model models/embeddinggemma-2.gguf --threads 4
+> 
+> # Sblocca tutti i 16 core alla massima velocità:
+> ./build/gemfinder-cli index ~/Documents --model models/embeddinggemma-2.gguf --threads 16
+> ```
 
 ### Cosa fa GemFinder durante la scansione:
 1. **Esclusione automatica:** salta cartelle di build, `.git`, `node_modules`, cache e file temporanei.

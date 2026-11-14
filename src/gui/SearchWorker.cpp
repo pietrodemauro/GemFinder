@@ -6,8 +6,8 @@
 
 namespace gemfinder {
 
-SearchWorker::SearchWorker(std::optional<fs::path> model_path, QObject* parent)
-    : QThread(parent), model_path_(std::move(model_path)) {
+SearchWorker::SearchWorker(std::optional<fs::path> model_path, int n_threads, QObject* parent)
+    : QThread(parent), model_path_(std::move(model_path)), n_threads_(n_threads) {
     checkDaemonStatus();
     start();
 }
@@ -55,7 +55,7 @@ IpcResponse SearchWorker::runLocalSearch(const IpcRequest& req) {
     }
 
     if (!local_engine_) {
-        auto engine = EngineFactory::createEngine(model_path_, kEmbeddingDim);
+        auto engine = EngineFactory::createEngine(model_path_, kEmbeddingDim, n_threads_);
         local_engine_ = std::make_unique<SearchEngine>(db_path, vec_path, std::move(engine));
         if (!local_engine_->initialize()) {
             resp.error_message = "Impossibile inizializzare il motore di ricerca locale.";
