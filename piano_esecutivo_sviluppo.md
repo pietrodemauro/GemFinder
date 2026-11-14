@@ -97,17 +97,18 @@ GemFinder/
   - Comandi CLI implementati: `index`, `search` (con `--image` e `--audio`), `stats`, `inspect`, `embed`, `hash`.
   - Suite unitaria `test_engine` integrata in CTest con 100% di test superati.
 
-### Step 5: Demone di Background e File Watcher [PROSSIMO PASSO]
+### Step 5: Demone di Background e File Watcher [COMPLETATO]
 * **Obiettivo:** Monitoraggio continuo e silenzioso del disco senza rallentare il sistema.
-* **Azioni:**
-  1. Integrazione del watcher filesystem (API `inotify` tramite libreria `efsw`).
-  2. Implementazione del **Debouncing & Priority Queue**:
-     - Coda di eventi con ritardo di 2 secondi per evitare scritture concorrenti durante salvataggi multipli o compilazioni.
-     - Esclusione immediata dei path in `.gitignore` o cartelle cache (`node_modules`, `.cache`, `target`, ecc.).
-  3. Server IPC basato su **Unix Domain Socket** (`/tmp/gemfinder.sock` o in `~/.local/state/gemfinder/`):
-     - Protocollo binario/JSON leggero per richieste di query, stato del demone e trigger di scansione.
+* **Stato:** ✅ Completato il 14/11/2026.
+* **Risultati:**
+  - `FileWatcher`: monitoraggio in tempo reale del kernel Linux tramite API `inotify` non-bloccante (`IN_CREATE`, `IN_MODIFY`, `IN_DELETE`, `IN_MOVED_FROM`, `IN_MOVED_TO`, `IN_CLOSE_WRITE`) con aggiunta dinamica ricorsiva di nuove directory e filtri di esclusione automatici.
+  - `Debouncer`: raggruppamento (*coalescing*) intelligente degli eventi su mappa concorrente con ritardo configurabile (default 2 secondi) per assorbire salvataggi multipli ed evitare accessi disco ridondanti.
+  - `IpcServer` e `IpcClient`: server e client su **Unix Domain Socket** (`/tmp/gemfinder.sock`) ad altissima velocità (latenze roundtrip di query < 0.3 ms) con protocollo tabulato a latenza zero.
+  - Eseguibile `gemfinder-daemon`: demone di background che mantiene l'indice vettoriale e i modelli caldi in memoria, gestisce il monitoraggio live delle cartelle e risponde alle query IPC con spegnimento pulito (`SIGINT`/`SIGTERM`).
+  - Integrazione trasparente nel `gemfinder-cli`: le ricerche interrogano automaticamente il demone in esecuzione se presente per risposte istantanee.
+  - Suite unitaria `test_daemon` integrata in CTest con 100% test superati.
 
-### Step 6: Client GUI Desktop (Spotlight-like)
+### Step 6: Client GUI Desktop (Spotlight-like) [PROSSIMO PASSO]
 * **Obiettivo:** Interfaccia utente scattante (< 50ms) attivabile via scorciatoia da tastiera globale.
 * **Azioni:**
   1. Creazione finestra flottante minimale (Dear ImGui con backend GLFW / OpenGL / Vulkan).

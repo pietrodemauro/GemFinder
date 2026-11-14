@@ -5,6 +5,7 @@
 #include "preprocessor/MediaPreprocessor.hpp"
 #include "inference/EngineFactory.hpp"
 #include "engine/SearchEngine.hpp"
+#include "daemon/IpcClient.hpp"
 
 #include <sqlite3.h>
 #include <iostream>
@@ -201,31 +202,62 @@ int main(int argc, char* argv[]) {
             try { limit = std::stoul(*lim_str); } catch (...) {}
         }
 
-        auto inf = gemfinder::EngineFactory::createEngine(model_path);
-        gemfinder::SearchEngine engine(db_path, vec_path, std::move(inf));
-        if (!engine.initialize()) {
-            return 1;
-        }
+        fs::path sock_path = getOption("--socket").value_or(std::string(gemfinder::kDefaultSocketPath));
+        gemfinder::IpcClient client(sock_path);
 
         std::vector<gemfinder::SearchResult> results;
-        auto start_t = std::chrono::high_resolution_clock::now();
+        double search_time_ms = 0.0;
 
-        if (auto img_path = getOption("--image")) {
-            std::cout << "Ricerca per immagine: " << *img_path << "\n";
-            results = engine.searchByImage(*img_path, limit);
-        } else if (auto aud_path = getOption("--audio")) {
-            std::cout << "Ricerca per audio: " << *aud_path << "\n";
-            results = engine.searchByAudio(*aud_path, limit);
-        } else if (argc >= 3) {
-            std::string query_text = argv[2];
-            results = engine.search(query_text, limit);
+        if (client.isDaemonRunning()) {
+            gemfinder::IpcRequest req;
+            req.limit = limit;
+
+            if (auto img_path = getOption("--image")) {
+                req.action = gemfinder::IpcAction::SearchImage;
+                req.path = *img_path;
+            } else if (auto aud_path = getOption("--audio")) {
+                req.action = gemfinder::IpcAction::SearchAudio;
+                req.path = *aud_path;
+            } else if (argc >= 3) {
+                req.action = gemfinder::IpcAction::SearchText;
+                req.query = argv[2];
+            } else {
+                gemfinder::Logger::error("Specificare una query testuale o --image <file> o --audio <file>");
+                return 1;
+            }
+
+            auto start_t = std::chrono::high_resolution_clock::now();
+            auto resp_opt = client.send(req);
+            auto end_t = std::chrono::high_resolution_clock::now();
+            search_time_ms = std::chrono::duration<double, std::milli>(end_t - start_t).count();
+
+            if (resp_opt && resp_opt->success) {
+                results = std::move(resp_opt->results);
+            } else {
+                gemfinder::Logger::error("Errore IPC dal demone: " + (resp_opt ? resp_opt->error_message : "timeout"));
+                return 1;
+            }
         } else {
-            gemfinder::Logger::error("Specificare una query testuale o --image <file> o --audio <file>");
-            return 1;
-        }
+            auto inf = gemfinder::EngineFactory::createEngine(model_path);
+            gemfinder::SearchEngine engine(db_path, vec_path, std::move(inf));
+            if (!engine.initialize()) {
+                return 1;
+            }
 
-        auto end_t = std::chrono::high_resolution_clock::now();
-        double search_time_ms = std::chrono::duration<double, std::milli>(end_t - start_t).count();
+            auto start_t = std::chrono::high_resolution_clock::now();
+            if (auto img_path = getOption("--image")) {
+                results = engine.searchByImage(*img_path, limit);
+            } else if (auto aud_path = getOption("--audio")) {
+                results = engine.searchByAudio(*aud_path, limit);
+            } else if (argc >= 3) {
+                results = engine.search(argv[2], limit);
+            } else {
+                gemfinder::Logger::error("Specificare una query testuale o --image <file> o --audio <file>");
+                return 1;
+            }
+            auto end_t = std::chrono::high_resolution_clock::now();
+            search_time_ms = std::chrono::duration<double, std::milli>(end_t - start_t).count();
+        }
 
         std::cout << "\n=== Risultati Ricerca (" << results.size() << " trovati in "
                   << std::fixed << std::setprecision(2) << search_time_ms << " ms) ===\n\n";

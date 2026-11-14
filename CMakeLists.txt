@@ -121,12 +121,32 @@ target_link_libraries(gemfinder_engine PUBLIC
     gemfinder_inference
 )
 
+# gemfinder_daemon_lib library
+add_library(gemfinder_daemon_lib STATIC
+    src/common/IpcProtocol.cpp
+    src/daemon/Debouncer.cpp
+    src/daemon/FileWatcher.cpp
+    src/daemon/IpcServer.cpp
+    src/daemon/IpcClient.cpp
+)
+target_link_libraries(gemfinder_daemon_lib PUBLIC
+    gemfinder_engine
+)
+
 # CLI executable
 add_executable(gemfinder-cli
     src/cli/main.cpp
 )
 target_link_libraries(gemfinder-cli PRIVATE
-    gemfinder_engine
+    gemfinder_daemon_lib
+)
+
+# Daemon executable
+add_executable(gemfinder-daemon
+    src/daemon/main.cpp
+)
+target_link_libraries(gemfinder-daemon PRIVATE
+    gemfinder_daemon_lib
 )
 
 # Tests
@@ -160,7 +180,15 @@ target_link_libraries(test_engine PRIVATE
     gemfinder_engine
 )
 
+add_executable(test_daemon
+    tests/test_daemon.cpp
+)
+target_link_libraries(test_daemon PRIVATE
+    gemfinder_daemon_lib
+)
+
 add_test(NAME StorageLayerTest COMMAND test_storage)
 add_test(NAME PreprocessorTest COMMAND test_preprocessor)
 add_test(NAME InferenceEngineTest COMMAND test_inference)
 add_test(NAME EngineTest COMMAND test_engine)
+add_test(NAME DaemonTest COMMAND test_daemon)

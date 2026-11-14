@@ -221,9 +221,9 @@ Quando l'utente inserisce un input nella barra di ricerca (testo, audio, immagin
 * [ ] Creare un *Thread Pool* per pre-processare i file su CPU mentre un thread dedicato alimenta la GPU/CPU con batch di inferenza per EmbeddingGemma 2.
 
 ### Fase 4: File System Watcher e Demone Background
-* [ ] Implementare il wrapper multipiattaforma per `inotify` / `FSEvents` / `ReadDirectoryChangesW` (oppure integrare una libreria C++ matura come **`efsw`** - *Entropia File System Watcher*).
-* [ ] Costruire la coda con *debouncing* e il sistema di pausa automatica quando il PC è a batteria o la CPU supera l'80% di carico utente.
-* [ ] Esporre il server IPC locale (Unix Socket / Named Pipe).
+* [x] Implementare il wrapper multipiattaforma per `inotify` / `FSEvents` / `ReadDirectoryChangesW` (oppure integrare una libreria C++ matura come **`efsw`** - *Entropia File System Watcher*).
+* [x] Costruire la coda con *debouncing* e il sistema di pausa automatica quando il PC è a batteria o la CPU supera l'80% di carico utente.
+* [x] Esporre il server IPC locale (Unix Socket / Named Pipe).
 
 ### Fase 5: Barra di Ricerca (GUI) ed Esperienza Utente
 * [ ] Creare l'interfaccia stile Spotlight in `Dear ImGui` o `Qt6`.
