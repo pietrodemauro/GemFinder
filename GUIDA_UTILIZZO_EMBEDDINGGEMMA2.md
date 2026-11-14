@@ -223,6 +223,12 @@ Se preferisci lavorare da terminale o integrare GemFinder in script bash:
 ./build/gemfinder-cli search --audio ~/Recordings/nota_vocale.wav --limit 5
 ```
 
+### Elenco Completo dei File Indicizzati
+Per sapere con precisione quali file sono stati registrati, la loro tipologia (testo, immagine, audio), dimensione e stato:
+```bash
+./build/gemfinder-cli list
+```
+
 ### Statistiche dell'Indice
 ```bash
 ./build/gemfinder-cli stats
