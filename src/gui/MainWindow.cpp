@@ -12,9 +12,9 @@
 
 namespace gemfinder {
 
-MainWindow::MainWindow(QWidget* parent)
+MainWindow::MainWindow(std::optional<fs::path> model_path, QWidget* parent)
     : QMainWindow(parent),
-      search_worker_(new SearchWorker(this)),
+      search_worker_(new SearchWorker(std::move(model_path), this)),
       debounce_timer_(new QTimer(this)) {
     setupUi();
     setupStyles();

@@ -14,7 +14,7 @@ class SearchWorker : public QThread {
     Q_OBJECT
 
 public:
-    explicit SearchWorker(QObject* parent = nullptr);
+    explicit SearchWorker(std::optional<fs::path> model_path = std::nullopt, QObject* parent = nullptr);
     ~SearchWorker() override;
 
     void requestSearch(const IpcRequest& req);
@@ -33,6 +33,7 @@ private:
     IpcResponse runLocalSearch(const IpcRequest& req);
 
     mutable std::mutex mutex_;
+    std::optional<fs::path> model_path_;
     IpcClient ipc_client_;
     std::unique_ptr<SearchEngine> local_engine_;
     bool daemon_running_{false};
