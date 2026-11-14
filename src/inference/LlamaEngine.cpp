@@ -12,6 +12,13 @@ namespace gemfinder {
 LlamaEngine::LlamaEngine(size_t target_dimension, int n_threads)
     : target_dim_(target_dimension),
       n_threads_(n_threads > 0 ? n_threads : static_cast<int>(std::max(1u, std::thread::hardware_concurrency()))) {
+    // Suppress verbose llama.cpp debug/info spam on stderr
+    llama_log_set([](ggml_log_level level, const char* text, void* user_data) {
+        (void)user_data;
+        if (level >= GGML_LOG_LEVEL_ERROR) {
+            std::cerr << text;
+        }
+    }, nullptr);
     llama_backend_init();
 }
 
@@ -166,11 +173,27 @@ Embedding LlamaEngine::embedText(std::string_view text) {
     }
     tokens.resize(static_cast<size_t>(n_tokens));
 
-    // Prepare batch
-    llama_batch batch = llama_batch_get_one(tokens.data(), n_tokens);
+    // Prepare batch with output enabled on all tokens for mean pooling
+    llama_batch batch = llama_batch_init(n_tokens, 0, 1);
+    for (int i = 0; i < n_tokens; ++i) {
+        batch.token[i] = tokens[static_cast<size_t>(i)];
+        batch.pos[i] = i;
+        batch.n_seq_id[i] = 1;
+        batch.seq_id[i][0] = 0;
+        batch.logits[i] = 1; // Mark output for all tokens for mean pooling
+    }
+    batch.n_tokens = n_tokens;
 
-    if (llama_decode(ctx_, batch) != 0) {
-        Logger::error("llama_decode failed during embedding generation");
+    int res = 0;
+    if (llama_model_has_encoder(model_)) {
+        res = llama_encode(ctx_, batch);
+    } else {
+        res = llama_decode(ctx_, batch);
+    }
+    llama_batch_free(batch);
+
+    if (res != 0) {
+        Logger::error("llama execution failed during embedding generation");
         return Embedding(target_dim_, 0.0f);
     }
 

@@ -96,6 +96,10 @@ std::vector<TextChunk> TextPreprocessor::processString(std::string_view content)
             chunks.push_back(std::move(chunk));
         }
 
+        if (chunks.size() >= config_.max_chunks_per_file) {
+            break;
+        }
+
         // Advance cursor with overlap
         if (split_point >= content.size()) {
             break;

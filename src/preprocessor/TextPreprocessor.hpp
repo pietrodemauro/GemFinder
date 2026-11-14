@@ -22,9 +22,10 @@ struct TextChunk {
 class TextPreprocessor {
 public:
     struct Config {
-        size_t max_chunk_chars{1000}; // ~200-250 words
-        size_t overlap_chars{150};    // Overlap between consecutive chunks
-        size_t min_chunk_chars{50};   // Discard chunks smaller than this unless entire file
+        size_t max_chunk_chars{1000};    // ~200-250 words
+        size_t overlap_chars{150};       // Overlap between consecutive chunks
+        size_t min_chunk_chars{50};      // Discard chunks smaller than this unless entire file
+        size_t max_chunks_per_file{100}; // Cap chunks to avoid stalling on huge logs/CSVs
     };
 
     TextPreprocessor();
