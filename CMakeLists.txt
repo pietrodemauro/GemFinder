@@ -172,6 +172,14 @@ target_link_libraries(gemfinder-gui PRIVATE
     Qt6::Widgets
 )
 
+# Benchmark executable
+add_executable(gemfinder-benchmark
+    src/benchmark/main.cpp
+)
+target_link_libraries(gemfinder-benchmark PRIVATE
+    gemfinder_daemon_lib
+)
+
 # Tests
 enable_testing()
 
@@ -233,3 +241,20 @@ add_test(NAME InferenceEngineTest COMMAND test_inference)
 add_test(NAME EngineTest COMMAND test_engine)
 add_test(NAME DaemonTest COMMAND test_daemon)
 add_test(NAME GuiTest COMMAND test_gui)
+add_test(NAME BenchmarkTest COMMAND gemfinder-benchmark 500)
+
+# Installation targets
+include(GNUInstallDirs)
+install(TARGETS gemfinder-cli gemfinder-daemon gemfinder-gui gemfinder-benchmark
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+)
+install(FILES systemd/gemfinder-daemon.service
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/systemd/user
+)
+install(FILES desktop/gemfinder.desktop
+    DESTINATION ${CMAKE_INSTALL_DATADIR}/applications
+)
+install(PROGRAMS scripts/gemfinder-toggle.sh
+    DESTINATION ${CMAKE_INSTALL_BINDIR}
+    RENAME gemfinder-toggle
+)

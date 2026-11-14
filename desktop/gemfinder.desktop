@@ -1,0 +1,17 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=GemFinder
+GenericName=Semantic Desktop Search
+Comment=Sub-millisecond multimodal semantic search for files, documents, images, and audio
+Exec=gemfinder-gui
+Icon=system-search
+Terminal=false
+Categories=Utility;Core;Filesystem;
+Keywords=search;semantic;multimodal;spotlight;raycast;finder;audio;image;
+StartupNotify=true
+Actions=NewSearch;
+
+[Desktop Action NewSearch]
+Name=Nuova Ricerca
+Exec=gemfinder-gui

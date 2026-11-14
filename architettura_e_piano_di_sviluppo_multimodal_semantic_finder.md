@@ -218,7 +218,7 @@ Quando l'utente inserisce un input nella barra di ricerca (testo, audio, immagin
 ### Fase 3: Crawler Iniziale e Pre-processori
 * [x] Costruire lo scanner ricorsivo (`std::filesystem::recursive_directory_iterator`) con il filtro di esclusione delle directory di sistema.
 * [x] Implementare i moduli di chunking per testo, audio (segmenti da 30s) e immagini.
-* [ ] Creare un *Thread Pool* per pre-processare i file su CPU mentre un thread dedicato alimenta la GPU/CPU con batch di inferenza per EmbeddingGemma 2.
+* [x] Creare un *Thread Pool* per pre-processare i file su CPU mentre un thread dedicato alimenta la GPU/CPU con batch di inferenza per EmbeddingGemma 2.
 
 ### Fase 4: File System Watcher e Demone Background
 * [x] Implementare il wrapper multipiattaforma per `inotify` / `FSEvents` / `ReadDirectoryChangesW` (oppure integrare una libreria C++ matura come **`efsw`** - *Entropia File System Watcher*).

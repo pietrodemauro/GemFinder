@@ -1,0 +1,17 @@
+[Unit]
+Description=GemFinder Background Multimodal Semantic Search Daemon
+Documentation=https://github.com/gemfinder/gemfinder
+After=default.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/gemfinder-daemon --db %h/.local/share/gemfinder/gemfinder_metadata.db --watch %h/Documents --watch %h/Downloads --watch %h/Pictures
+Restart=on-failure
+RestartSec=5s
+Nice=12
+IOSchedulingClass=idle
+MemoryMax=3G
+CPUQuota=100%
+
+[Install]
+WantedBy=default.target
