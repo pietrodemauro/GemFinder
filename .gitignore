@@ -1,0 +1,33 @@
+# Build directories
+build/
+cmake-build-*/
+bin/
+lib/
+
+# IDE & Editor settings
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+compile_commands.json
+.clangd/
+
+# Databases and Vector indices
+*.db
+*.db-wal
+*.db-shm
+*.usearch
+
+# AI Models (GGUF weights)
+models/
+*.gguf
+*.bin
+
+# Logs & temp files
+*.log
+/tmp/
+
+# OS files
+.DS_Store
+Thumbs.db
