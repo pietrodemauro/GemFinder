@@ -81,6 +81,8 @@ bool LlamaEngine::loadModel(const fs::path& model_path) {
     cparams.embeddings = true;
     cparams.pooling_type = LLAMA_POOLING_TYPE_MEAN;
     cparams.n_ctx = 2048;
+    cparams.n_batch = 2048;
+    cparams.n_ubatch = 2048;
     cparams.n_threads = n_threads_;
     cparams.n_threads_batch = n_threads_;
 
@@ -148,6 +150,19 @@ Embedding LlamaEngine::embedText(std::string_view text) {
 
     if (n_tokens <= 0) {
         return Embedding(target_dim_, 0.0f);
+    }
+
+    // Encoder requires n_ubatch >= n_tokens. Clamp n_tokens to context & batch capacity.
+    int max_tokens = 2048;
+    if (ctx_) {
+        int ctx_lim = static_cast<int>(llama_n_ctx(ctx_));
+        int batch_lim = static_cast<int>(llama_n_batch(ctx_));
+        if (ctx_lim > 0 && batch_lim > 0) {
+            max_tokens = std::min(ctx_lim, batch_lim);
+        }
+    }
+    if (n_tokens > max_tokens) {
+        n_tokens = max_tokens;
     }
     tokens.resize(static_cast<size_t>(n_tokens));
 

@@ -31,30 +31,38 @@ bool SearchEngine::save() {
 }
 
 bool SearchEngine::indexSingleFile(const fs::path& path) {
-    auto payload_opt = preprocessor_.processFile(path);
-    if (!payload_opt) {
-        return false;
-    }
-
-    auto& payload = *payload_opt;
-    std::vector<std::pair<ChunkRecord, Embedding>> chunks_with_embeddings;
-    chunks_with_embeddings.reserve(payload.chunks.size());
-
-    for (const auto& prepared : payload.chunks) {
-        Embedding emb;
-
-        if (payload.file.modality == Modality::Image && !prepared.raw_media_buffer.empty()) {
-            emb = inference_->embedImage(prepared.raw_media_buffer, 224, 224);
-        } else if (payload.file.modality == Modality::Audio && !prepared.raw_media_buffer.empty()) {
-            emb = inference_->embedAudio(prepared.raw_media_buffer, 16000);
-        } else {
-            emb = inference_->embedText(prepared.prompt);
+    try {
+        auto payload_opt = preprocessor_.processFile(path);
+        if (!payload_opt) {
+            return false;
         }
 
-        chunks_with_embeddings.emplace_back(prepared.record, std::move(emb));
-    }
+        auto& payload = *payload_opt;
+        std::vector<std::pair<ChunkRecord, Embedding>> chunks_with_embeddings;
+        chunks_with_embeddings.reserve(payload.chunks.size());
 
-    return storage_->indexFile(payload.file, chunks_with_embeddings);
+        for (const auto& prepared : payload.chunks) {
+            Embedding emb;
+
+            if (payload.file.modality == Modality::Image && !prepared.raw_media_buffer.empty()) {
+                emb = inference_->embedImage(prepared.raw_media_buffer, 224, 224);
+            } else if (payload.file.modality == Modality::Audio && !prepared.raw_media_buffer.empty()) {
+                emb = inference_->embedAudio(prepared.raw_media_buffer, 16000);
+            } else {
+                emb = inference_->embedText(prepared.prompt);
+            }
+
+            chunks_with_embeddings.emplace_back(prepared.record, std::move(emb));
+        }
+
+        return storage_->indexFile(payload.file, chunks_with_embeddings);
+    } catch (const std::exception& e) {
+        Logger::error("SearchEngine: Errore durante l'indicizzazione di " + path.string() + ": " + e.what());
+        return false;
+    } catch (...) {
+        Logger::error("SearchEngine: Errore sconosciuto durante l'indicizzazione di " + path.string());
+        return false;
+    }
 }
 
 bool SearchEngine::removeFile(const fs::path& path) {

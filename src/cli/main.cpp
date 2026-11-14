@@ -24,6 +24,7 @@ void printUsage(std::string_view progName) {
               << "  " << progName << " search --image <file.jpg> [--limit <N>] [--model <modello.gguf>] [--db <path>]\n"
               << "  " << progName << " search --audio <file.wav> [--limit <N>] [--model <modello.gguf>] [--db <path>]\n"
               << "  " << progName << " stats [--db <path>]\n"
+              << "  " << progName << " list [--db <path>]       Elenca tutti i file registrati nell'indice\n"
               << "  " << progName << " inspect <file>           Pre-processa un file e mostra i chunk estratti\n"
               << "  " << progName << " embed <testo> [--model <modello.gguf>] Calcola l'embedding di un testo\n"
               << "  " << progName << " hash <file>              Calcola l'hash xxHash64 di un file\n"
@@ -301,6 +302,54 @@ int main(int argc, char* argv[]) {
         std::cout << "Modello Inferenza:   " << stats.inference_model << "\n";
         std::cout << "DB Metadati:         " << stats.db_path << "\n";
         std::cout << "Indice Vettoriale:   " << stats.vector_path << "\n";
+        return 0;
+    }
+
+    // Command: list
+    if (command == "list") {
+        gemfinder::Database db(db_path);
+        if (!db.initializeSchema()) {
+            std::cerr << "Impossibile aprire il database: " << db_path << "\n";
+            return 1;
+        }
+
+        auto files = db.getAllFiles();
+        std::cout << "\n=== GemFinder File Registrati (" << files.size() << " file totali) ===\n\n";
+        if (files.empty()) {
+            std::cout << "Nessun file presente nel database.\n";
+            return 0;
+        }
+
+        size_t indexed_count = 0;
+        size_t error_count = 0;
+        size_t pending_count = 0;
+
+        for (size_t i = 0; i < files.size(); ++i) {
+            const auto& f = files[i];
+            std::string mod_icon = "📄";
+            if (f.modality == gemfinder::Modality::Image) mod_icon = "🖼️";
+            else if (f.modality == gemfinder::Modality::Audio) mod_icon = "🎵";
+
+            std::string status_badge = "[Indexed]";
+            if (f.status == gemfinder::IndexStatus::Error) {
+                status_badge = "[Error]";
+                error_count++;
+            } else if (f.status == gemfinder::IndexStatus::Pending) {
+                status_badge = "[Pending]";
+                pending_count++;
+            } else {
+                indexed_count++;
+            }
+
+            std::cout << std::setw(4) << (i + 1) << ". " << mod_icon << " " << f.filename
+                      << "  " << status_badge
+                      << " (" << (f.file_size / 1024) << " KB)\n";
+            std::cout << "       Percorso: " << f.filepath.string() << "\n";
+        }
+
+        std::cout << "\nRiepilogo: " << indexed_count << " indicizzati, "
+                  << pending_count << " in attesa, "
+                  << error_count << " con errori.\n\n";
         return 0;
     }
 
