@@ -59,15 +59,7 @@ std::optional<ProcessedPayload> MediaPreprocessor::processFile(const fs::path& p
     uint64_t file_size = fs::file_size(path, ec);
     if (ec) file_size = 0;
 
-    auto last_write = fs::last_write_time(path, ec);
-    int64_t mtime = 0;
-    if (!ec) {
-        auto sctp = std::chrono::time_point_cast<std::chrono::system_clock::duration>(
-            last_write - fs::file_time_type::clock::now() + std::chrono::system_clock::now()
-        );
-        mtime = std::chrono::duration_cast<std::chrono::seconds>(sctp.time_since_epoch()).count();
-    }
-
+    int64_t mtime = getFileMtime(path);
     uint64_t hash = Hasher::hashFile(path);
 
     Modality mod = detectModality(path);

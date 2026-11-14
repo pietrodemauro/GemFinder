@@ -184,6 +184,9 @@ std::optional<FileRecord> Database::getFileById(FileId id) {
         f.mtime = sqlite3_column_int64(stmt, 5);
         f.xxhash64 = static_cast<uint64_t>(sqlite3_column_int64(stmt, 6));
         f.modality = stringToModality(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7)));
+        if (const char* st = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8))) {
+            f.status = stringToStatus(st);
+        }
         rec = f;
     }
 
@@ -212,6 +215,9 @@ std::optional<FileRecord> Database::getFileByPath(const fs::path& path) {
         f.mtime = sqlite3_column_int64(stmt, 5);
         f.xxhash64 = static_cast<uint64_t>(sqlite3_column_int64(stmt, 6));
         f.modality = stringToModality(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7)));
+        if (const char* st = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8))) {
+            f.status = stringToStatus(st);
+        }
         rec = f;
     }
 
@@ -267,6 +273,9 @@ std::vector<FileRecord> Database::getAllFiles() {
         f.mtime = sqlite3_column_int64(stmt, 5);
         f.xxhash64 = static_cast<uint64_t>(sqlite3_column_int64(stmt, 6));
         f.modality = stringToModality(reinterpret_cast<const char*>(sqlite3_column_text(stmt, 7)));
+        if (const char* st = reinterpret_cast<const char*>(sqlite3_column_text(stmt, 8))) {
+            f.status = stringToStatus(st);
+        }
         files.push_back(std::move(f));
     }
 

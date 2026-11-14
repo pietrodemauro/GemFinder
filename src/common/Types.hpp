@@ -5,10 +5,19 @@
 #include <vector>
 #include <filesystem>
 #include <optional>
+#include <chrono>
 
 namespace gemfinder {
 
 namespace fs = std::filesystem;
+
+[[nodiscard]] inline int64_t getFileMtime(const fs::path& path) {
+    std::error_code ec;
+    auto last_write = fs::last_write_time(path, ec);
+    if (ec) return 0;
+    auto sys_time = std::chrono::file_clock::to_sys(last_write);
+    return std::chrono::duration_cast<std::chrono::seconds>(sys_time.time_since_epoch()).count();
+}
 
 using FileId = int64_t;
 using ChunkId = int64_t;
@@ -60,6 +69,12 @@ enum class IndexStatus : uint8_t {
         case IndexStatus::Error:   return "error";
     }
     return "unknown";
+}
+
+[[nodiscard]] inline IndexStatus stringToStatus(std::string_view sv) {
+    if (sv == "indexed") return IndexStatus::Indexed;
+    if (sv == "error")   return IndexStatus::Error;
+    return IndexStatus::Pending;
 }
 
 struct FileRecord {

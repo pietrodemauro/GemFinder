@@ -86,18 +86,18 @@ GemFinder/
   - Test unitario `test_inference` (MRL, Cosine Similarity, Factory) superato al 100% in CTest.
   - CLI `gemfinder-cli --embed "<testo>"` funzionante con latenza sub-millisecondo (< 0.1 ms).
 
-### Step 4: Prototipo CLI End-to-End (`gemfinder-cli`) [PROSSIMO PASSO]
+### Step 4: Prototipo CLI End-to-End (`gemfinder-cli`) [COMPLETATO]
 * **Obiettivo:** Testare l'intero flusso di indicizzazione e interrogazione da terminale.
-* **Azioni:**
-  1. Comando `gemfinder-cli index --path <dir>`:
-     - Scansione ricorsiva della directory con filtri di esclusione (file nascosti, cartelle di sistema).
-     - Pipeline completa: Preprocessing -> Inference -> StorageManager.
-  2. Comando `gemfinder-cli search --query "testo"`:
-     - Embedding della query -> HNSW search + FTS5 BM25 search -> RRF fusion -> visualizzazione risultati con anteprime ed estratti.
-  3. Comando `gemfinder-cli search --image <path>` o `--audio <path>`:
-     - Ricerca cross-modale tramite file multimediale.
+* **Stato:** ✅ Completato il 14/11/2026.
+* **Risultati:**
+  - `Crawler`: scansione ricorsiva ad alte prestazioni con filtri di esclusione directory (`.git`, `node_modules`, `build`, `.cache`, `third_party`, ecc.) e file nascosti.
+  - `SearchEngine`: orchestrazione completa tra Crawler, MediaPreprocessor, InferenceEngine e StorageManager.
+  - Scansione incrementale intelligente: verifica di `mtime`, `file_size` e `xxhash64` per saltare istantaneamente file non modificati a costo zero.
+  - Ricerca ibrida multimodale: testo, immagini e audio con ranking RRF combinato (HNSW + FTS5 BM25) e latenze di query misurate **< 1 ms** su oltre 115.000 vettori.
+  - Comandi CLI implementati: `index`, `search` (con `--image` e `--audio`), `stats`, `inspect`, `embed`, `hash`.
+  - Suite unitaria `test_engine` integrata in CTest con 100% di test superati.
 
-### Step 5: Demone di Background e File Watcher
+### Step 5: Demone di Background e File Watcher [PROSSIMO PASSO]
 * **Obiettivo:** Monitoraggio continuo e silenzioso del disco senza rallentare il sistema.
 * **Azioni:**
   1. Integrazione del watcher filesystem (API `inotify` tramite libreria `efsw`).

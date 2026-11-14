@@ -110,14 +110,23 @@ target_link_libraries(gemfinder_inference PUBLIC
     ggml
 )
 
+# gemfinder_engine library
+add_library(gemfinder_engine STATIC
+    src/engine/Crawler.cpp
+    src/engine/SearchEngine.cpp
+)
+target_link_libraries(gemfinder_engine PUBLIC
+    gemfinder_storage
+    gemfinder_preprocessor
+    gemfinder_inference
+)
+
 # CLI executable
 add_executable(gemfinder-cli
     src/cli/main.cpp
 )
 target_link_libraries(gemfinder-cli PRIVATE
-    gemfinder_storage
-    gemfinder_preprocessor
-    gemfinder_inference
+    gemfinder_engine
 )
 
 # Tests
@@ -144,6 +153,14 @@ target_link_libraries(test_inference PRIVATE
     gemfinder_inference
 )
 
+add_executable(test_engine
+    tests/test_engine.cpp
+)
+target_link_libraries(test_engine PRIVATE
+    gemfinder_engine
+)
+
 add_test(NAME StorageLayerTest COMMAND test_storage)
 add_test(NAME PreprocessorTest COMMAND test_preprocessor)
 add_test(NAME InferenceEngineTest COMMAND test_inference)
+add_test(NAME EngineTest COMMAND test_engine)
