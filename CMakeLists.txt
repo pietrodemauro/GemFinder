@@ -41,6 +41,8 @@ include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/usearch/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/miniaudio
     ${SQLite3_INCLUDE_DIRS}
     ${XXHASH_INCLUDE_DIR}
 )
@@ -51,12 +53,15 @@ target_include_directories(gemfinder_common INTERFACE
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party
     SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/usearch/include
+    SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
+    SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/miniaudio
     SYSTEM ${SQLite3_INCLUDE_DIRS}
     SYSTEM ${XXHASH_INCLUDE_DIR}
 )
 target_link_libraries(gemfinder_common INTERFACE
     ${SQLite3_LIBRARIES}
     ${XXHASH_LIBRARY}
+    m
 )
 
 # gemfinder_storage library
@@ -69,12 +74,24 @@ target_link_libraries(gemfinder_storage PUBLIC
     gemfinder_common
 )
 
+# gemfinder_preprocessor library
+add_library(gemfinder_preprocessor STATIC
+    src/preprocessor/TextPreprocessor.cpp
+    src/preprocessor/ImagePreprocessor.cpp
+    src/preprocessor/AudioPreprocessor.cpp
+    src/preprocessor/MediaPreprocessor.cpp
+)
+target_link_libraries(gemfinder_preprocessor PUBLIC
+    gemfinder_common
+)
+
 # CLI executable
 add_executable(gemfinder-cli
     src/cli/main.cpp
 )
 target_link_libraries(gemfinder-cli PRIVATE
     gemfinder_storage
+    gemfinder_preprocessor
 )
 
 # Tests
@@ -87,4 +104,12 @@ target_link_libraries(test_storage PRIVATE
     gemfinder_storage
 )
 
+add_executable(test_preprocessor
+    tests/test_preprocessor.cpp
+)
+target_link_libraries(test_preprocessor PRIVATE
+    gemfinder_preprocessor
+)
+
 add_test(NAME StorageLayerTest COMMAND test_storage)
+add_test(NAME PreprocessorTest COMMAND test_preprocessor)

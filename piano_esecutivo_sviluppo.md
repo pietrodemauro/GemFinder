@@ -64,23 +64,17 @@ GemFinder/
   - `StorageManager`: sincronizzazione atomica tra SQLite e USearch (`chunk_id <-> vector_key`), aggiornamento incrementale e algoritmo di fusione **RRF (Reciprocal Rank Fusion)** per ricerca ibrida.
   - Test suite unitaria `tests/test_storage.cpp` (FTS5, VectorStore, RRF Hybrid Search) integrata in CTest e superata al 100%.
 
-### Step 2: Pipeline di Pre-processing Multimodale [PROSSIMO PASSO]
+### Step 2: Pipeline di Pre-processing Multimodale [COMPLETATO]
 * **Obiettivo:** Trasformare file su disco in strutture tokenizzabili o tensori pronti per l'inferenza.
-* **Azioni:**
-  1. **Modulo Testo/Codice (`TextPreprocessor`):**
-     - Riconoscimento codifica UTF-8.
-     - Segmentazione per paragrafi/linee con finestra scorrevole (es. 512 token/caratteri con overlap).
-  2. **Modulo Immagini (`ImagePreprocessor`):**
-     - Integrazione `stb_image.h` per caricamento JPEG/PNG/WebP.
-     - Ridimensionamento bilineare/bicubico (`stb_image_resize2.h`) e normalizzazione canali RGB `[0.0, 1.0]`.
-  3. **Modulo Audio (`AudioPreprocessor`):**
-     - Integrazione `miniaudio.h` (e `libswresample` per formati complessi).
-     - Decodifica e ricampionamento forzato a **PCM 16 kHz mono float32**.
-     - Chunking dell'audio in finestre temporali da 30s con 5s di overlap per tracce lunghe.
-  4. **Modulo Hash rapido (`FileHasher`):**
-     - Calcolo `xxhash64` per verificare se un file modificato è solo stato spostato/rinominato senza alterare il contenuto.
+* **Stato:** ✅ Completato il 14/11/2026.
+* **Risultati:**
+  - `TextPreprocessor`: segmentazione semantica intelligente su confini di paragrafo (`\n\n`), frase o parole, tracciamento righe (`start_line`/`end_line`), generazione anteprime e prompt formatting Gemma (`title: ... | text: ...` e `task: search result | query: ...`).
+  - `ImagePreprocessor`: decodifica immagini tramite `stb_image.h` (JPEG, PNG, BMP, WebP), ridimensionamento bilineare continuo a $224 \times 224$ e normalizzazione canali RGB in float `[0.0, 1.0]`.
+  - `AudioPreprocessor`: decodifica multi-formato tramite `miniaudio.h` (WAV, MP3, FLAC), resampling automatico a **PCM 16 kHz Mono float32**, slicing in finestre da 30s con overlap di 5s.
+  - `MediaPreprocessor`: router automatico delle estensioni con calcolo hash `xxhash64` e generazione del payload completo `ProcessedPayload`.
+  - Integrazione CLI (`gemfinder-cli --inspect <file>`) e test unitari `test_preprocessor` con 100% test superati in CTest.
 
-### Step 3: Inference Engine (EmbeddingGemma 2 via llama.cpp / Vulkan)
+### Step 3: Inference Engine (EmbeddingGemma 2 via llama.cpp / Vulkan) [PROSSIMO PASSO]
 * **Obiettivo:** Generazione locale ad alta efficienza di vettori densi multimodali.
 * **Azioni:**
   1. Integrazione di `llama.cpp` come dipendenza CMake con backend Vulkan abilitato per la GPU Radeon RX 6700 XT.
