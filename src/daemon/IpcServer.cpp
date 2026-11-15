@@ -25,7 +25,7 @@ bool IpcServer::start() {
 
     server_fd_ = socket(AF_UNIX, SOCK_STREAM | SOCK_NONBLOCK | SOCK_CLOEXEC, 0);
     if (server_fd_ < 0) {
-        Logger::error("IpcServer: creazione socket fallita: " + std::string(std::strerror(errno)));
+        Logger::error("IpcServer: socket creation failed: " + std::string(std::strerror(errno)));
         return false;
     }
 
@@ -34,14 +34,14 @@ bool IpcServer::start() {
     std::strncpy(addr.sun_path, socket_path_.c_str(), sizeof(addr.sun_path) - 1);
 
     if (bind(server_fd_, reinterpret_cast<struct sockaddr*>(&addr), sizeof(addr)) < 0) {
-        Logger::error("IpcServer: bind fallito su " + socket_path_.string() + ": " + std::string(std::strerror(errno)));
+        Logger::error("IpcServer: bind failed on " + socket_path_.string() + ": " + std::string(std::strerror(errno)));
         close(server_fd_);
         server_fd_ = -1;
         return false;
     }
 
     if (listen(server_fd_, 16) < 0) {
-        Logger::error("IpcServer: listen fallito: " + std::string(std::strerror(errno)));
+        Logger::error("IpcServer: listen failed: " + std::string(std::strerror(errno)));
         close(server_fd_);
         server_fd_ = -1;
         return false;
@@ -49,7 +49,7 @@ bool IpcServer::start() {
 
     running_.store(true);
     accept_thread_ = std::jthread([this]() { runLoop(); });
-    Logger::info("IpcServer in ascolto su socket: " + socket_path_.string());
+    Logger::info("IpcServer listening on socket: " + socket_path_.string());
     return true;
 }
 
@@ -66,7 +66,7 @@ void IpcServer::stop() {
         server_fd_ = -1;
     }
     unlink(socket_path_.c_str());
-    Logger::info("IpcServer arrestato.");
+    Logger::info("IpcServer stopped.");
 }
 
 void IpcServer::runLoop() {

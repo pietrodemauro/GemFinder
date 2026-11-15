@@ -29,6 +29,9 @@ endif()
 # Find external dependencies
 find_package(SQLite3 REQUIRED)
 find_package(Qt6 COMPONENTS Widgets REQUIRED)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(POPPLER_CPP REQUIRED poppler-cpp)
+pkg_check_modules(TESSERACT REQUIRED tesseract)
 
 set(CMAKE_AUTOMOC ON)
 set(CMAKE_AUTORCC ON)
@@ -41,27 +44,43 @@ if(NOT XXHASH_INCLUDE_DIR OR NOT XXHASH_LIBRARY)
     message(FATAL_ERROR "xxhash not found. Please install xxhash development package.")
 endif()
 
+# Vulkan & SPIRV headers for GPU acceleration
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/Vulkan-Headers/include")
+    set(Vulkan_INCLUDE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/Vulkan-Headers/include" CACHE PATH "" FORCE)
+    list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/Vulkan-Headers")
+endif()
+if(EXISTS "${CMAKE_CURRENT_SOURCE_DIR}/third_party/SPIRV-Headers/SPIRV-HeadersConfig.cmake")
+    set(SPIRV-Headers_DIR "${CMAKE_CURRENT_SOURCE_DIR}/third_party/SPIRV-Headers" CACHE PATH "" FORCE)
+    list(APPEND CMAKE_PREFIX_PATH "${CMAKE_CURRENT_SOURCE_DIR}/third_party/SPIRV-Headers")
+endif()
+
 # llama.cpp subproject configuration
 set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
 set(GGML_CCACHE OFF CACHE BOOL "" FORCE)
-set(GGML_VULKAN OFF CACHE BOOL "" FORCE)
-
-add_subdirectory(third_party/llama.cpp EXCLUDE_FROM_ALL)
+set(GGML_VULKAN ON CACHE BOOL "" FORCE)
+set(LLAMA_BUILD_MTMD ON CACHE BOOL "" FORCE)
 
 # Common include directories
 include_directories(
     ${CMAKE_CURRENT_SOURCE_DIR}/src
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/SPIRV-Headers/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/Vulkan-Headers/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/usearch/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/stb
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/miniaudio
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/include
     ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/ggml/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/tools/mtmd
     ${SQLite3_INCLUDE_DIRS}
     ${XXHASH_INCLUDE_DIR}
+    ${POPPLER_CPP_INCLUDE_DIRS}
+    ${TESSERACT_INCLUDE_DIRS}
 )
+
+add_subdirectory(third_party/llama.cpp EXCLUDE_FROM_ALL)
 
 # gemfinder_common interface library
 add_library(gemfinder_common INTERFACE)
@@ -73,6 +92,7 @@ target_include_directories(gemfinder_common INTERFACE
     SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/miniaudio
     SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/include
     SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/ggml/include
+    SYSTEM ${CMAKE_CURRENT_SOURCE_DIR}/third_party/llama.cpp/tools/mtmd
     SYSTEM ${SQLite3_INCLUDE_DIRS}
     SYSTEM ${XXHASH_INCLUDE_DIR}
 )
@@ -95,12 +115,15 @@ target_link_libraries(gemfinder_storage PUBLIC
 # gemfinder_preprocessor library
 add_library(gemfinder_preprocessor STATIC
     src/preprocessor/TextPreprocessor.cpp
+    src/preprocessor/PdfPreprocessor.cpp
     src/preprocessor/ImagePreprocessor.cpp
     src/preprocessor/AudioPreprocessor.cpp
     src/preprocessor/MediaPreprocessor.cpp
 )
 target_link_libraries(gemfinder_preprocessor PUBLIC
     gemfinder_common
+    ${POPPLER_CPP_LIBRARIES}
+    ${TESSERACT_LIBRARIES}
 )
 
 # gemfinder_inference library
@@ -113,6 +136,7 @@ target_link_libraries(gemfinder_inference PUBLIC
     gemfinder_common
     llama
     ggml
+    mtmd
 )
 
 # gemfinder_engine library
@@ -202,6 +226,7 @@ add_executable(test_inference
 )
 target_link_libraries(test_inference PRIVATE
     gemfinder_inference
+    gemfinder_preprocessor
 )
 
 add_executable(test_engine

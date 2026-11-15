@@ -47,14 +47,14 @@ int main(int argc, char* argv[]) {
 
     fs::path vec_path = db_path.parent_path() / (db_path.stem().string() + ".usearch");
 
-    gemfinder::Logger::info("Avvio di " + std::string(gemfinder::kProjectName) +
+    gemfinder::Logger::info("Starting " + std::string(gemfinder::kProjectName) +
                             "-daemon (v" + std::string(gemfinder::kVersion) + ")...");
 
     auto inference = gemfinder::EngineFactory::createEngine(model_path, gemfinder::kEmbeddingDim, n_threads);
     auto engine = std::make_unique<gemfinder::SearchEngine>(db_path, vec_path, std::move(inference));
 
     if (!engine->initialize()) {
-        gemfinder::Logger::error("Impossibile inizializzare il motore di ricerca.");
+        gemfinder::Logger::error("Failed to initialize search engine.");
         return 1;
     }
 
@@ -90,6 +90,12 @@ int main(int argc, char* argv[]) {
                 resp.success = true;
                 break;
             }
+            case gemfinder::IpcAction::UnindexDirectory: {
+                size_t removed = engine->removeDirectory(req.path);
+                resp.total_files = removed;
+                resp.success = true;
+                break;
+            }
             case gemfinder::IpcAction::GetStats: {
                 auto s = engine->getStats();
                 resp.total_files = s.total_files;
@@ -100,7 +106,7 @@ int main(int argc, char* argv[]) {
             }
             default: {
                 resp.success = false;
-                resp.error_message = "Azione non supportata";
+                resp.error_message = "Unsupported action";
                 break;
             }
         }
@@ -119,10 +125,10 @@ int main(int argc, char* argv[]) {
     // Initialize File Watcher with debouncing
     gemfinder::FileWatcher watcher([&](const fs::path& path, gemfinder::FileEvent ev) {
         if (ev == gemfinder::FileEvent::Deleted) {
-            gemfinder::Logger::info("[WATCHER] Rimosso file: " + path.filename().string());
+            gemfinder::Logger::info("[WATCHER] Removed file: " + path.filename().string());
             engine->removeFile(path);
         } else {
-            gemfinder::Logger::info("[WATCHER] Re-indicizzazione: " + path.filename().string());
+            gemfinder::Logger::info("[WATCHER] Re-indexing file: " + path.filename().string());
             engine->indexSingleFile(path);
             engine->save();
         }
@@ -132,21 +138,21 @@ int main(int argc, char* argv[]) {
         for (const auto& dir : watch_dirs) {
             if (fs::exists(dir)) {
                 watcher.addWatch(dir);
-                gemfinder::Logger::info("Monitoraggio cartella: " + dir.string());
+                gemfinder::Logger::info("Watching directory: " + dir.string());
             }
         }
     }
 
-    gemfinder::Logger::info("Demone operativo. In attesa di richieste o eventi filesystem (Ctrl+C per arrestare)...");
+    gemfinder::Logger::info("Daemon operational. Waiting for requests or filesystem events (Ctrl+C to stop)...");
 
     while (g_running.load()) {
         std::this_thread::sleep_for(std::chrono::milliseconds(250));
     }
 
-    gemfinder::Logger::info("Arresto del demone in corso...");
+    gemfinder::Logger::info("Stopping daemon...");
     watcher.stop();
     ipc_server.stop();
     engine->save();
-    gemfinder::Logger::info("Demone arrestato con successo.");
+    gemfinder::Logger::info("Daemon stopped successfully.");
     return 0;
 }

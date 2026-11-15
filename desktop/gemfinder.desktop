@@ -13,5 +13,5 @@ StartupNotify=true
 Actions=NewSearch;
 
 [Desktop Action NewSearch]
-Name=Nuova Ricerca
+Name=New Search
 Exec=gemfinder-gui

@@ -57,6 +57,7 @@ public:
 
     bool indexSingleFile(const fs::path& path);
     bool removeFile(const fs::path& path);
+    size_t removeDirectory(const fs::path& dir_path);
 
     // Queries
     [[nodiscard]] std::vector<SearchResult> search(

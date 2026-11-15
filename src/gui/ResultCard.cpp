@@ -17,16 +17,23 @@ namespace gemfinder {
 
 namespace {
 
-QString formatOffset(Modality modality, int64_t offset) {
-    if (modality == Modality::Text) {
-        if (offset > 0) {
-            return QString("Riga %1").arg(offset);
+QString formatOffset(const SearchResult& result) {
+    if (result.chunk_type == "pdf_page") {
+        if (result.start_offset > 0) {
+            return QString("Page %1").arg(result.start_offset);
         }
-        return QString("Testo");
+        return QString("PDF");
+    }
+    Modality modality = detectResultModality(result);
+    if (modality == Modality::Text) {
+        if (result.start_offset > 0) {
+            return QString("Line %1").arg(result.start_offset);
+        }
+        return QString("Text");
     }
     if (modality == Modality::Audio) {
-        int64_t minutes = offset / 60;
-        int64_t seconds = offset % 60;
+        int64_t minutes = result.start_offset / 60;
+        int64_t seconds = result.start_offset % 60;
         return QString("⏱ %1:%2")
             .arg(minutes, 2, 10, QChar('0'))
             .arg(seconds, 2, 10, QChar('0'));
@@ -119,7 +126,7 @@ void ResultCard::setupUi() {
     title_label_->setStyleSheet("color: #cad3f5; font-weight: bold; font-size: 14px;");
     header_layout->addWidget(title_label_);
 
-    offset_badge_ = new QLabel(formatOffset(modality_, result_.start_offset), this);
+    offset_badge_ = new QLabel(formatOffset(result_), this);
     offset_badge_->setStyleSheet("background-color: #363a4f; color: #a6da95; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;");
     header_layout->addWidget(offset_badge_);
 
@@ -140,9 +147,9 @@ void ResultCard::setupUi() {
     QString preview_str = QString::fromStdString(result_.preview_text).trimmed();
     if (preview_str.isEmpty()) {
         if (modality_ == Modality::Image) {
-            preview_str = "[Immagine vettorializzata e indicizzata]";
+            preview_str = "[Image embedded and indexed]";
         } else if (modality_ == Modality::Audio) {
-            preview_str = "[Segmento audio campionato a 16 kHz Mono]";
+            preview_str = "[Audio segment sampled at 16 kHz Mono]";
         }
     }
     // Limit length for display
@@ -193,11 +200,11 @@ void ResultCard::contextMenuEvent(QContextMenuEvent* event) {
         }
     )");
 
-    auto* act_open = menu.addAction("📂 Apri File");
-    auto* act_folder = menu.addAction("📁 Mostra nella Cartella");
+    auto* act_open = menu.addAction("📂 Open File");
+    auto* act_folder = menu.addAction("📁 Show in Folder");
     menu.addSeparator();
-    auto* act_copy_path = menu.addAction("📋 Copia Percorso Assoluto");
-    auto* act_copy_preview = menu.addAction("📝 Copia Testo Anteprima");
+    auto* act_copy_path = menu.addAction("📋 Copy Absolute Path");
+    auto* act_copy_preview = menu.addAction("📝 Copy Preview Text");
 
     QAction* selected = menu.exec(event->globalPos());
     if (selected == act_open) {

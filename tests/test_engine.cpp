@@ -2,13 +2,13 @@
 #undef NDEBUG
 #endif
 #include <cassert>
-#include "engine/SearchEngine.hpp"
 #include "engine/Crawler.hpp"
+#include "engine/SearchEngine.hpp"
 #include "inference/MockEngine.hpp"
 #include "common/Logger.hpp"
-#include <filesystem>
 #include <fstream>
 #include <iostream>
+#include <filesystem>
 
 namespace fs = std::filesystem;
 
@@ -34,7 +34,7 @@ void testCrawler() {
     gemfinder::Logger::info("Crawler found " + std::to_string(found_files.size()) + " files (excluded .git and node_modules)");
 
     fs::remove_all(temp_dir);
-    gemfinder::Logger::info("Test 1 completato con successo!");
+    gemfinder::Logger::info("Test 1 completed successfully!");
 }
 
 void testSearchEngineEndToEnd() {
@@ -49,14 +49,14 @@ void testSearchEngineEndToEnd() {
     fs::create_directories(test_dir);
 
     // Create 3 diverse files
-    std::ofstream(test_dir / "meteo.txt")
-        << "Previsioni meteo: forte temporale con pioggia battente e allagamenti sulla citta di Milano.";
+    std::ofstream(test_dir / "weather.txt")
+        << "Weather forecast: heavy thunderstorm with torrential rain and flooding across the city.";
 
-    std::ofstream(test_dir / "vettori.cpp")
-        << "Algoritmo HNSW per la ricerca vettoriale approssimata ad altissima velocita in C++20.";
+    std::ofstream(test_dir / "vectors.cpp")
+        << "HNSW graph algorithm for ultra-fast approximate nearest neighbor vector search in C++20.";
 
-    std::ofstream(test_dir / "ricetta.md")
-        << "Ricetta classica della pizza margherita napoletana con farina pomodoro e mozzarella di bufala.";
+    std::ofstream(test_dir / "recipe.md")
+        << "Classic Neapolitan pizza margherita recipe with flour, San Marzano tomatoes, and mozzarella.";
 
     auto mock_inf = std::make_unique<gemfinder::DeterministicMockEngine>(gemfinder::kEmbeddingDim);
     gemfinder::SearchEngine engine(test_db, test_vec, std::move(mock_inf));
@@ -71,17 +71,17 @@ void testSearchEngineEndToEnd() {
                             std::to_string(stats.elapsed_seconds) + "s");
 
     // 2. Hybrid Search for Weather
-    auto results_meteo = engine.search("temporale pioggia", 5);
-    assert(!results_meteo.empty());
-    assert(results_meteo[0].filename == "meteo.txt");
-    gemfinder::Logger::info("Top match for 'temporale pioggia': " + results_meteo[0].filename +
-                            " (Score: " + std::to_string(results_meteo[0].score) + ")");
+    auto results_weather = engine.search("thunderstorm rain", 5);
+    assert(!results_weather.empty());
+    assert(results_weather[0].filename == "weather.txt");
+    gemfinder::Logger::info("Top match for 'thunderstorm rain': " + results_weather[0].filename +
+                            " (Score: " + std::to_string(results_weather[0].score) + ")");
 
     // 3. Hybrid Search for Vectors
-    auto results_vec = engine.search("HNSW vettori", 5);
+    auto results_vec = engine.search("HNSW vectors", 5);
     assert(!results_vec.empty());
-    assert(results_vec[0].filename == "vettori.cpp");
-    gemfinder::Logger::info("Top match for 'HNSW vettori': " + results_vec[0].filename +
+    assert(results_vec[0].filename == "vectors.cpp");
+    gemfinder::Logger::info("Top match for 'HNSW vectors': " + results_vec[0].filename +
                             " (Score: " + std::to_string(results_vec[0].score) + ")");
 
     // 4. Test Incremental Indexing (skipping unmodified files)
@@ -92,25 +92,25 @@ void testSearchEngineEndToEnd() {
                             std::to_string(stats_incremental.skipped_files) + " unmodified files!");
 
     // 5. Test File Deletion
-    assert(engine.removeFile(test_dir / "ricetta.md"));
+    assert(engine.removeFile(test_dir / "recipe.md"));
     auto stats_after_del = engine.getStats();
     assert(stats_after_del.total_files == 2);
     auto results_pizza = engine.search("pizza margherita", 5);
     for (const auto& r : results_pizza) {
-        assert(r.filename != "ricetta.md");
+        assert(r.filename != "recipe.md");
     }
     gemfinder::Logger::info("File deletion and index update verified!");
 
     fs::remove_all(test_dir);
     fs::remove(test_db);
     fs::remove(test_vec);
-    gemfinder::Logger::info("Test 2 completato con successo!");
+    gemfinder::Logger::info("Test 2 completed successfully!");
 }
 
 int main() {
-    gemfinder::Logger::info("=== Avvio Test Suite Search Engine (Step 4) ===");
+    gemfinder::Logger::info("=== Starting Search Engine Test Suite (Step 4) ===");
     testCrawler();
     testSearchEngineEndToEnd();
-    gemfinder::Logger::info("=== TUTTI I TEST DELLO STEP 4 SUPERATI CON SUCCESSO! ===");
+    gemfinder::Logger::info("=== ALL STEP 4 TESTS PASSED SUCCESSFULLY! ===");
     return 0;
 }

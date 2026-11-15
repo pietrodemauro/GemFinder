@@ -36,8 +36,8 @@ void testDatabaseAndFTS() {
 
     // 1. Insert file
     gemfinder::FileRecord file1;
-    file1.filepath = "/tmp/appunti_meteo.txt";
-    file1.filename = "appunti_meteo.txt";
+    file1.filepath = "/tmp/weather_notes.txt";
+    file1.filename = "weather_notes.txt";
     file1.extension = ".txt";
     file1.file_size = 1024;
     file1.mtime = 1700000000;
@@ -54,7 +54,7 @@ void testDatabaseAndFTS() {
     chunk1.chunk_type = "text_paragraph";
     chunk1.start_offset = 0;
     chunk1.end_offset = 150;
-    chunk1.preview_text = "Oggi a Milano piove forte, previsto temporale con grandine nel pomeriggio.";
+    chunk1.preview_text = "Heavy rain in the morning, thunderstorm and hail expected in the afternoon.";
     auto cid1 = db.insertChunk(chunk1);
     assert(cid1.has_value());
 
@@ -63,19 +63,19 @@ void testDatabaseAndFTS() {
     chunk2.chunk_type = "text_paragraph";
     chunk2.start_offset = 151;
     chunk2.end_offset = 300;
-    chunk2.preview_text = "Domani splenderà il sole e le temperature aumenteranno.";
+    chunk2.preview_text = "Tomorrow the sun will shine and temperatures will rise significantly.";
     auto cid2 = db.insertChunk(chunk2);
     assert(cid2.has_value());
 
     // 3. Search FTS
-    auto fts_results = db.searchFts("temporale");
+    auto fts_results = db.searchFts("thunderstorm");
     assert(!fts_results.empty());
     assert(fts_results[0].chunk_id == *cid1);
     gemfinder::Logger::info("FTS5 Match: Found chunk_id=" + std::to_string(fts_results[0].chunk_id) +
                             " Snippet: " + fts_results[0].snippet);
 
     fs::remove(test_db);
-    gemfinder::Logger::info("Test 1 completato con successo!");
+    gemfinder::Logger::info("Test 1 completed successfully!");
 }
 
 void testVectorStore() {
@@ -98,6 +98,7 @@ void testVectorStore() {
     // Search near v1
     auto query = makeSyntheticVector(10, 5.0f);
     auto matches = vs.search(query, 2);
+
     assert(matches.size() == 2);
     assert(matches[0].chunk_id == 101); // Identical
     assert(matches[0].similarity > 0.99f);
@@ -115,7 +116,7 @@ void testVectorStore() {
     assert(vs_view.size() == 3);
 
     fs::remove(index_path);
-    gemfinder::Logger::info("Test 2 completato con successo!");
+    gemfinder::Logger::info("Test 2 completed successfully!");
 }
 
 void testHybridSearch() {
@@ -135,39 +136,39 @@ void testHybridSearch() {
     doc_a.extension = ".md";
     gemfinder::ChunkRecord chunk_a;
     chunk_a.chunk_type = "text_paragraph";
-    chunk_a.preview_text = "EmbeddingGemma 2 è un modello per la ricerca semantica multimodale ad alta velocità.";
+    chunk_a.preview_text = "EmbeddingGemma 2 is a state-of-the-art model for high-speed multimodal semantic search.";
     auto vec_a = makeSyntheticVector(5, 5.0f);
 
     assert(storage.indexFile(doc_a, {{chunk_a, vec_a}}));
 
-    // File B: Document on Italian cuisine
+    // File B: Document on cooking recipes
     gemfinder::FileRecord doc_b;
-    doc_b.filepath = "/docs/ricetta_pizza.txt";
-    doc_b.filename = "ricetta_pizza.txt";
+    doc_b.filepath = "/docs/pizza_recipe.txt";
+    doc_b.filename = "pizza_recipe.txt";
     doc_b.extension = ".txt";
     gemfinder::ChunkRecord chunk_b;
     chunk_b.chunk_type = "text_paragraph";
-    chunk_b.preview_text = "Impasto per pizza napoletana a lunga lievitazione e cottura ad alta temperatura.";
+    chunk_b.preview_text = "Neapolitan pizza dough recipe with long fermentation and high temperature baking.";
     auto vec_b = makeSyntheticVector(50, 5.0f);
 
     assert(storage.indexFile(doc_b, {{chunk_b, vec_b}}));
 
     // File C: Document on climate
     gemfinder::FileRecord doc_c;
-    doc_c.filepath = "/docs/clima_meteo.txt";
-    doc_c.filename = "clima_meteo.txt";
+    doc_c.filepath = "/docs/climate_weather.txt";
+    doc_c.filename = "climate_weather.txt";
     doc_c.extension = ".txt";
     gemfinder::ChunkRecord chunk_c;
     chunk_c.chunk_type = "text_paragraph";
-    chunk_c.preview_text = "Temporale estivo con forti precipitazioni e grandine.";
+    chunk_c.preview_text = "Summer thunderstorm with intense rainfall and lightning strikes.";
     auto vec_c = makeSyntheticVector(100, 5.0f);
 
     assert(storage.indexFile(doc_c, {{chunk_c, vec_c}}));
     assert(storage.totalIndexedFiles() == 3);
 
-    // Hybrid query: vector close to AI (dim 5) + lexical search "modello"
+    // Hybrid query: vector close to AI (dim 5) + lexical search "model"
     auto query_vec = makeSyntheticVector(5, 4.0f);
-    auto results = storage.hybridSearch("modello", query_vec, 10);
+    auto results = storage.hybridSearch("model", query_vec, 10);
 
     assert(!results.empty());
     // Document A should be top-1 with highest RRF score because it matched BOTH vector and text!
@@ -179,14 +180,14 @@ void testHybridSearch() {
 
     fs::remove(test_db);
     fs::remove(test_vec);
-    gemfinder::Logger::info("Test 3 completato con successo!");
+    gemfinder::Logger::info("Test 3 completed successfully!");
 }
 
 int main() {
-    gemfinder::Logger::info("=== Avvio Test Suite Storage & Hybrid Search ===");
+    gemfinder::Logger::info("=== Starting Storage & Hybrid Search Test Suite ===");
     testDatabaseAndFTS();
     testVectorStore();
     testHybridSearch();
-    gemfinder::Logger::info("=== TUTTI I TEST DELLO STEP 1 SUPERATI CON SUCCESSO! ===");
+    gemfinder::Logger::info("=== ALL STEP 1 TESTS PASSED SUCCESSFULLY! ===");
     return 0;
 }

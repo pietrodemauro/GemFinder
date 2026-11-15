@@ -46,6 +46,11 @@ Modality MediaPreprocessor::detectModality(const fs::path& path) {
         return Modality::Text;
     }
 
+    // PDF documents
+    if (ext == ".pdf") {
+        return Modality::Text;
+    }
+
     // If extension is empty or unknown binary
     return Modality::Binary;
 }
@@ -76,16 +81,46 @@ std::optional<ProcessedPayload> MediaPreprocessor::processFile(const fs::path& p
 
     switch (mod) {
         case Modality::Text: {
-            auto text_chunks = text_.processFile(path);
-            payload.chunks.reserve(text_chunks.size());
-            for (const auto& tc : text_chunks) {
-                PreparedChunk pc;
-                pc.record.chunk_type = "text_paragraph";
-                pc.record.start_offset = tc.start_line;
-                pc.record.end_offset = tc.end_line;
-                pc.record.preview_text = tc.preview;
-                pc.prompt = TextPreprocessor::formatDocumentPrompt(path, tc.text);
-                payload.chunks.push_back(std::move(pc));
+            std::string ext_lower = path.extension().string();
+            std::transform(ext_lower.begin(), ext_lower.end(), ext_lower.begin(), [](unsigned char c) {
+                return static_cast<char>(std::tolower(c));
+            });
+
+            if (ext_lower == ".pdf") {
+                auto pdf_chunks = pdf_.processFile(path);
+                payload.chunks.reserve(pdf_chunks.size());
+                for (const auto& pc : pdf_chunks) {
+                    PreparedChunk chunk;
+                    chunk.record.chunk_type = "pdf_page";
+                    chunk.record.start_offset = pc.page_number;
+                    chunk.record.end_offset = pc.page_number;
+                    chunk.record.preview_text = pc.preview;
+                    chunk.prompt = TextPreprocessor::formatDocumentPrompt(path, pc.text);
+                    payload.chunks.push_back(std::move(chunk));
+                }
+
+                if (payload.chunks.empty()) {
+                    // Fallback to filename/metadata if PDF produced no text
+                    PreparedChunk chunk;
+                    chunk.record.chunk_type = "file_metadata";
+                    chunk.record.start_offset = 0;
+                    chunk.record.end_offset = 0;
+                    chunk.record.preview_text = path.filename().string() + " (" + std::to_string(file_size) + " bytes)";
+                    chunk.prompt = "title: " + path.filename().string();
+                    payload.chunks.push_back(std::move(chunk));
+                }
+            } else {
+                auto text_chunks = text_.processFile(path);
+                payload.chunks.reserve(text_chunks.size());
+                for (const auto& tc : text_chunks) {
+                    PreparedChunk pc;
+                    pc.record.chunk_type = "text_paragraph";
+                    pc.record.start_offset = tc.start_line;
+                    pc.record.end_offset = tc.end_line;
+                    pc.record.preview_text = tc.preview;
+                    pc.prompt = TextPreprocessor::formatDocumentPrompt(path, tc.text);
+                    payload.chunks.push_back(std::move(pc));
+                }
             }
             break;
         }

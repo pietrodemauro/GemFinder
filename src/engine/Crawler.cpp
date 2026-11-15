@@ -30,7 +30,7 @@ std::vector<fs::path> Crawler::crawl(
     std::error_code ec;
 
     if (!fs::exists(root_path, ec) || !fs::is_directory(root_path, ec)) {
-        Logger::error("Crawler: path non valido o non è una cartella: " + root_path.string());
+        Logger::error("Crawler: invalid path or not a directory: " + root_path.string());
         return results;
     }
 

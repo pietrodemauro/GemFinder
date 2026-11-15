@@ -9,7 +9,7 @@ namespace gemfinder {
 namespace fs = std::filesystem;
 
 inline Modality detectResultModality(const SearchResult& item) {
-    if (item.chunk_type == "text_paragraph") {
+    if (item.chunk_type == "text_paragraph" || item.chunk_type == "pdf_page") {
         return Modality::Text;
     }
     if (item.chunk_type == "image_frame") {

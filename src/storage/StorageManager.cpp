@@ -100,6 +100,39 @@ bool StorageManager::removeFileById(FileId file_id) {
     return db_.removeFile(file_id);
 }
 
+size_t StorageManager::removeDirectory(const fs::path& dir_path) {
+    std::error_code ec;
+    fs::path canonical_target = fs::weakly_canonical(dir_path, ec);
+    std::string target_str = ec ? dir_path.string() : canonical_target.string();
+    if (!target_str.empty() && target_str.back() != fs::path::preferred_separator) {
+        target_str += fs::path::preferred_separator;
+    }
+
+    auto all_files = db_.getAllFiles();
+    std::vector<FileId> to_remove;
+    for (const auto& f : all_files) {
+        fs::path p = f.filepath;
+        fs::path can_p = fs::weakly_canonical(p, ec);
+        std::string p_str = ec ? p.string() : can_p.string();
+        if (p_str.starts_with(target_str) || p_str == dir_path.string() || (!ec && can_p == canonical_target)) {
+            to_remove.push_back(f.id);
+        }
+    }
+
+    db_.beginTransaction();
+    for (FileId fid : to_remove) {
+        auto chunks = db_.getChunksByFileId(fid);
+        for (const auto& c : chunks) {
+            vectors_.remove(c.id);
+        }
+        db_.removeFile(fid);
+    }
+    db_.commitTransaction();
+    save();
+
+    return to_remove.size();
+}
+
 size_t StorageManager::totalIndexedFiles() {
     return db_.getAllFiles().size();
 }

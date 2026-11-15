@@ -24,6 +24,10 @@ models/
 *.gguf
 *.bin
 
+# Third-party local clones
+third_party/SPIRV-Headers/
+third_party/Vulkan-Headers/
+
 # Logs & temp files
 *.log
 /tmp/

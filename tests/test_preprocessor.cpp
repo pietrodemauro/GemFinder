@@ -3,6 +3,7 @@
 #endif
 #include <cassert>
 #include "preprocessor/TextPreprocessor.hpp"
+#include "preprocessor/PdfPreprocessor.hpp"
 #include "preprocessor/ImagePreprocessor.hpp"
 #include "preprocessor/AudioPreprocessor.hpp"
 #include "preprocessor/MediaPreprocessor.hpp"
@@ -89,9 +90,9 @@ void testTextPreprocessing() {
     gemfinder::Logger::info("--- Test 1: Text Preprocessor ---");
     gemfinder::TextPreprocessor preprocessor;
 
-    std::string text = "Primo paragrafo.\nContiene informazioni sul meteo e sulla pioggia.\n\n"
-                       "Secondo paragrafo.\nSpiega l'architettura di GemFinder in C++20.\n\n"
-                       "Terzo paragrafo con dettagli avanzati sull'indicizzazione.";
+    std::string text = "First paragraph.\nContains detailed weather forecast and precipitation information.\n\n"
+                       "Second paragraph.\nExplains the architectural design of GemFinder in C++20.\n\n"
+                       "Third paragraph with advanced indexing insights.";
 
     auto chunks = preprocessor.processString(text);
     assert(!chunks.empty());
@@ -101,10 +102,10 @@ void testTextPreprocessing() {
 
     std::string doc_prompt = gemfinder::TextPreprocessor::formatDocumentPrompt("test.txt", chunks[0].text);
     assert(doc_prompt.starts_with("title: test.txt | text: "));
-    std::string q_prompt = gemfinder::TextPreprocessor::formatQueryPrompt("ricerca meteo");
-    assert(q_prompt == "task: search result | query: ricerca meteo");
+    std::string q_prompt = gemfinder::TextPreprocessor::formatQueryPrompt("weather forecast");
+    assert(q_prompt == "task: search result | query: weather forecast");
 
-    gemfinder::Logger::info("Test 1 completato con successo!");
+    gemfinder::Logger::info("Test 1 completed successfully!");
 }
 
 void testImagePreprocessing() {
@@ -129,7 +130,7 @@ void testImagePreprocessing() {
 
     gemfinder::Logger::info("Image processed successfully: " + processed->preview_text);
     fs::remove(bmp_path);
-    gemfinder::Logger::info("Test 2 completato con successo!");
+    gemfinder::Logger::info("Test 2 completed successfully!");
 }
 
 void testAudioPreprocessing() {
@@ -153,12 +154,61 @@ void testAudioPreprocessing() {
                             std::to_string(processed->chunks[0].pcm_samples.size()) + ")");
 
     fs::remove(wav_path);
-    gemfinder::Logger::info("Test 3 completato con successo!");
+    gemfinder::Logger::info("Test 3 completed successfully!");
+}
+
+void testPdfPreprocessing() {
+    gemfinder::Logger::info("--- Test 4: PDF Digital Text Extraction ---");
+    fs::path pdf_path = "/tmp/test_digital_gemfinder.pdf";
+
+    // Generate digital vector PDF via groff
+    int res = std::system("echo 'Test paragraph for digital vector PDF in GemFinder.' | groff -Tpdf > /tmp/test_digital_gemfinder.pdf 2>/dev/null");
+    if (res != 0 || !fs::exists(pdf_path)) {
+        gemfinder::Logger::warn("Unable to generate digital test PDF, skipping digital test");
+        return;
+    }
+
+    gemfinder::PdfPreprocessor pdf_proc;
+    auto chunks = pdf_proc.processFile(pdf_path);
+    assert(!chunks.empty());
+    assert(chunks[0].page_number == 1);
+    assert(!chunks[0].is_ocr);
+    assert(chunks[0].text.find("GemFinder") != std::string::npos);
+    gemfinder::Logger::info("Extracted native PDF text: '" + chunks[0].preview + "'");
+
+    fs::remove(pdf_path);
+    gemfinder::Logger::info("Test 4 completed successfully!");
+}
+
+void testPdfOcrPreprocessing() {
+    gemfinder::Logger::info("--- Test 5: PDF Scanned Image OCR Extraction ---");
+    fs::path img_path = "/tmp/test_ocr_scan.png";
+    fs::path pdf_path = "/tmp/test_ocr_scan.pdf";
+
+    // Generate scanned PDF with text image
+    int res = std::system("convert -size 800x200 xc:white -font DejaVu-Sans -pointsize 32 -fill black -draw \"text 50,100 'GemFinder OCR Test Document 2026'\" /tmp/test_ocr_scan.png 2>/dev/null && convert /tmp/test_ocr_scan.png /tmp/test_ocr_scan.pdf 2>/dev/null");
+    if (res != 0 || !fs::exists(pdf_path)) {
+        gemfinder::Logger::warn("Unable to generate raster PDF for OCR, skipping OCR test");
+        return;
+    }
+
+    gemfinder::PdfPreprocessor pdf_proc;
+    auto chunks = pdf_proc.processFile(pdf_path);
+    assert(!chunks.empty());
+    assert(chunks[0].page_number == 1);
+    assert(chunks[0].is_ocr);
+    assert(chunks[0].text.find("GemFinder") != std::string::npos || chunks[0].text.find("OCR") != std::string::npos);
+    gemfinder::Logger::info("Extracted OCR text from scanned PDF: '" + chunks[0].preview + "'");
+
+    fs::remove(img_path);
+    fs::remove(pdf_path);
+    gemfinder::Logger::info("Test 5 completed successfully!");
 }
 
 void testMediaRouter() {
-    gemfinder::Logger::info("--- Test 4: Unified MediaPreprocessor Router ---");
+    gemfinder::Logger::info("--- Test 6: Unified MediaPreprocessor Router ---");
     assert(gemfinder::MediaPreprocessor::detectModality("test.txt") == gemfinder::Modality::Text);
+    assert(gemfinder::MediaPreprocessor::detectModality("document.pdf") == gemfinder::Modality::Text);
     assert(gemfinder::MediaPreprocessor::detectModality("photo.JPG") == gemfinder::Modality::Image);
     assert(gemfinder::MediaPreprocessor::detectModality("voice.wav") == gemfinder::Modality::Audio);
     assert(gemfinder::MediaPreprocessor::detectModality("movie.mp4") == gemfinder::Modality::Video);
@@ -167,7 +217,7 @@ void testMediaRouter() {
     fs::path temp_txt = "/tmp/router_test.md";
     {
         std::ofstream out(temp_txt);
-        out << "# Intestazione Documento\nContenuto del file per testare il router.";
+        out << "# Document Header\nSample content to verify media routing.";
     }
 
     gemfinder::MediaPreprocessor router;
@@ -180,15 +230,31 @@ void testMediaRouter() {
     assert(payload->chunks[0].record.chunk_type == "text_paragraph");
 
     fs::remove(temp_txt);
-    gemfinder::Logger::info("Test 4 completato con successo!");
+
+    // Test routing PDF through MediaPreprocessor
+    std::system("echo 'Test text for PDF MediaPreprocessor routing' | groff -Tpdf > /tmp/router_pdf.pdf 2>/dev/null");
+    if (fs::exists("/tmp/router_pdf.pdf")) {
+        auto pdf_payload = router.processFile("/tmp/router_pdf.pdf");
+        assert(pdf_payload.has_value());
+        assert(pdf_payload->file.filename == "router_pdf.pdf");
+        assert(pdf_payload->file.modality == gemfinder::Modality::Text);
+        assert(!pdf_payload->chunks.empty());
+        assert(pdf_payload->chunks[0].record.chunk_type == "pdf_page");
+        assert(pdf_payload->chunks[0].record.start_offset == 1);
+        fs::remove("/tmp/router_pdf.pdf");
+    }
+
+    gemfinder::Logger::info("Test 6 completed successfully!");
 }
 
 int main() {
-    gemfinder::Logger::info("=== Avvio Test Suite Pre-processing Multimodale (Step 2) ===");
+    gemfinder::Logger::info("=== Starting Multimodal Preprocessing Test Suite (Step 2) ===");
     testTextPreprocessing();
     testImagePreprocessing();
     testAudioPreprocessing();
+    testPdfPreprocessing();
+    testPdfOcrPreprocessing();
     testMediaRouter();
-    gemfinder::Logger::info("=== TUTTI I TEST DELLO STEP 2 SUPERATI CON SUCCESSO! ===");
+    gemfinder::Logger::info("=== ALL STEP 2 TESTS PASSED SUCCESSFULLY! ===");
     return 0;
 }

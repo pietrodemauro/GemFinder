@@ -1,16 +1,16 @@
+#include "common/Types.hpp"
 #include "common/Version.hpp"
 #include "common/Logger.hpp"
 #include "common/Hasher.hpp"
-#include "common/Types.hpp"
+#include "common/IpcProtocol.hpp"
+#include "storage/Database.hpp"
 #include "preprocessor/MediaPreprocessor.hpp"
 #include "inference/EngineFactory.hpp"
 #include "engine/SearchEngine.hpp"
 #include "daemon/IpcClient.hpp"
-
-#include <sqlite3.h>
 #include <iostream>
-#include <string_view>
-#include <filesystem>
+#include <string>
+#include <vector>
 #include <chrono>
 #include <iomanip>
 
@@ -18,20 +18,21 @@ namespace fs = std::filesystem;
 
 void printUsage(std::string_view progName) {
     std::cout << progName << " - " << gemfinder::kProjectDescription << "\n\n"
-              << "Uso:\n"
-              << "  " << progName << " index <cartella> [--model <modello.gguf>] [--threads <N>] [--db <path>] [--force]\n"
-              << "  " << progName << " search <query_testo> [--limit <N>] [--threads <N>] [--model <modello.gguf>] [--db <path>]\n"
-              << "  " << progName << " search --image <file.jpg> [--limit <N>] [--threads <N>] [--model <modello.gguf>] [--db <path>]\n"
-              << "  " << progName << " search --audio <file.wav> [--limit <N>] [--threads <N>] [--model <modello.gguf>] [--db <path>]\n"
+              << "Usage:\n"
+              << "  " << progName << " index <directory> [--model <model.gguf>] [--threads <N>] [--db <path>] [--force]\n"
+              << "  " << progName << " unindex <directory> [--db <path>] Remove all files in directory from index\n"
+              << "  " << progName << " search <query_text> [--limit <N>] [--threads <N>] [--model <model.gguf>] [--db <path>]\n"
+              << "  " << progName << " search --image <file.jpg> [--limit <N>] [--threads <N>] [--model <model.gguf>] [--db <path>]\n"
+              << "  " << progName << " search --audio <file.wav> [--limit <N>] [--threads <N>] [--model <model.gguf>] [--db <path>]\n"
               << "  " << progName << " stats [--db <path>]\n"
-              << "  " << progName << " list [--db <path>]       Elenca tutti i file registrati nell'indice\n"
-              << "  " << progName << " inspect <file>           Pre-processa un file e mostra i chunk estratti\n"
-              << "  " << progName << " embed <testo> [--model <modello.gguf>] [--threads <N>] Calcola l'embedding di un testo\n"
-              << "  " << progName << " hash <file>              Calcola l'hash xxHash64 di un file\n"
-              << "  " << progName << " --info                   Mostra le librerie e lo stato del sistema\n"
-              << "  " << progName << " --version                Mostra la versione del software\n\n"
-              << "Opzioni CPU e Risorse:\n"
-              << "  --threads, -t <N>    Imposta manualmente il numero di thread/core CPU (default: metà dei core massimi)\n";
+              << "  " << progName << " list [--db <path>]       List all registered files in the index\n"
+              << "  " << progName << " inspect <file>           Preprocess a file and inspect extracted chunks\n"
+              << "  " << progName << " embed <text> [--model <model.gguf>] [--threads <N>] Compute embedding for text\n"
+              << "  " << progName << " hash <file>              Compute xxHash64 for a file\n"
+              << "  " << progName << " --info                   Show system info and loaded libraries\n"
+              << "  " << progName << " --version                Show software version\n\n"
+              << "CPU & Resource Options:\n"
+              << "  --threads, -t <N>    Manually set CPU worker threads (default: 50% of CPU cores)\n";
 }
 
 int main(int argc, char* argv[]) {
@@ -43,7 +44,7 @@ int main(int argc, char* argv[]) {
     std::string_view command = argv[1];
 
     if (command == "--version" || command == "-v") {
-        std::cout << gemfinder::kProjectName << " versione " << gemfinder::kVersion << "\n";
+        std::cout << gemfinder::kProjectName << " version " << gemfinder::kVersion << "\n";
         return 0;
     }
 
@@ -54,10 +55,10 @@ int main(int argc, char* argv[]) {
 
     if (command == "--info") {
         std::cout << "=== GemFinder System Info ===\n";
-        std::cout << "Progetto:   " << gemfinder::kProjectName << " (" << gemfinder::kVersion << ")\n";
+        std::cout << "Project:    " << gemfinder::kProjectName << " (" << gemfinder::kVersion << ")\n";
         std::cout << "C++ Std:    " << __cplusplus << "\n";
         std::cout << "SQLite:     " << sqlite3_libversion() << " (source: " << sqlite3_sourceid() << ")\n";
-        std::cout << "Vector Dim: " << gemfinder::kEmbeddingDim << " (Matryoshka L2 Normalizzato)\n";
+        std::cout << "Vector Dim: " << gemfinder::kEmbeddingDim << " (Matryoshka L2 Normalized)\n";
         std::cout << "Raw Dim:    " << gemfinder::kRawEmbeddingDim << "\n";
         return 0;
     }
@@ -65,7 +66,7 @@ int main(int argc, char* argv[]) {
     if ((command == "hash" || command == "--hash") && argc >= 3) {
         fs::path target = argv[2];
         if (!fs::exists(target)) {
-            gemfinder::Logger::error("File non trovato: " + target.string());
+            gemfinder::Logger::error("File not found: " + target.string());
             return 1;
         }
         uint64_t hash = gemfinder::Hasher::hashFile(target);
@@ -77,14 +78,14 @@ int main(int argc, char* argv[]) {
     if ((command == "inspect" || command == "--inspect") && argc >= 3) {
         fs::path target = argv[2];
         if (!fs::exists(target)) {
-            gemfinder::Logger::error("File non trovato: " + target.string());
+            gemfinder::Logger::error("File not found: " + target.string());
             return 1;
         }
 
         gemfinder::MediaPreprocessor router;
         auto payload = router.processFile(target);
         if (!payload) {
-            gemfinder::Logger::error("Impossibile pre-processare il file: " + target.string());
+            gemfinder::Logger::error("Unable to preprocess file: " + target.string());
             return 1;
         }
 
@@ -99,7 +100,7 @@ int main(int argc, char* argv[]) {
         for (size_t i = 0; i < payload->chunks.size(); ++i) {
             const auto& chunk = payload->chunks[i];
             std::cout << "  [Chunk " << (i + 1) << "]\n";
-            std::cout << "    Tipo:    " << chunk.record.chunk_type << "\n";
+            std::cout << "    Type:    " << chunk.record.chunk_type << "\n";
             std::cout << "    Offset:  " << chunk.record.start_offset << " -> " << chunk.record.end_offset << "\n";
             std::cout << "    Preview: " << chunk.record.preview_text << "\n";
             if (!chunk.raw_media_buffer.empty()) {
@@ -133,7 +134,7 @@ int main(int argc, char* argv[]) {
 
         std::cout << "=== GemFinder Embedding Test ===\n";
         std::cout << "Engine:    " << engine->modelName() << "\n";
-        std::cout << "Dim:       " << vec.size() << " floats (L2 normalizzato)\n";
+        std::cout << "Dim:       " << vec.size() << " floats (L2 normalized)\n";
         std::cout << "Latency:   " << elapsed_ms << " ms\n";
         std::cout << "Vector:    [";
         for (size_t i = 0; i < std::min<size_t>(8, vec.size()); ++i) {
@@ -143,7 +144,7 @@ int main(int argc, char* argv[]) {
         return 0;
     }
 
-    // Default paths for DB and Vector store in current directory or ~/.local/share/gemfinder
+    // Default paths for DB and Vector store
     fs::path default_db = "gemfinder_metadata.db";
     fs::path default_vec = "gemfinder_vectors.usearch";
 
@@ -179,33 +180,49 @@ int main(int argc, char* argv[]) {
     if (command == "index" && argc >= 3) {
         fs::path target_dir = argv[2];
         if (!fs::exists(target_dir) || !fs::is_directory(target_dir)) {
-            gemfinder::Logger::error("Cartella non trovata: " + target_dir.string());
+            gemfinder::Logger::error("Directory not found: " + target_dir.string());
             return 1;
         }
 
         bool force = hasFlag("--force");
 
-        gemfinder::Logger::info("Inizializzazione motore di ricerca per l'indicizzazione...");
+        gemfinder::Logger::info("Initializing search engine for indexing...");
         auto inf = gemfinder::EngineFactory::createEngine(model_path, gemfinder::kEmbeddingDim, n_threads);
         gemfinder::SearchEngine engine(db_path, vec_path, std::move(inf));
         if (!engine.initialize()) {
             return 1;
         }
 
-        std::cout << "\nScansione e indicizzazione di: " << target_dir << "\n";
+        std::cout << "\nScanning and indexing: " << target_dir << "\n";
         auto stats = engine.indexDirectory(target_dir, force, [](const std::string& cur, size_t i, size_t total) {
             std::cout << "\r[" << i << "/" << total << "] " << cur.substr(0, 50) << "              " << std::flush;
         });
 
-        std::cout << "\n\n=== Risultati Indicizzazione ===\n";
-        std::cout << "File scansionati:   " << stats.scanned_files << "\n";
-        std::cout << "File indicizzati:   " << stats.indexed_files << "\n";
-        std::cout << "File non modificati:" << stats.skipped_files << " (saltati istantaneamente)\n";
-        std::cout << "Chunk generati:     " << stats.indexed_chunks << "\n";
-        std::cout << "Errori:             " << stats.error_files << "\n";
-        std::cout << "Tempo totale:       " << std::fixed << std::setprecision(2) << stats.elapsed_seconds << " secondi\n";
-        std::cout << "Database salvato:   " << db_path << "\n";
-        std::cout << "Indice vettoriale:  " << vec_path << "\n";
+        std::cout << "\n\n=== Indexing Results ===\n";
+        std::cout << "Files scanned:      " << stats.scanned_files << "\n";
+        std::cout << "Files indexed:      " << stats.indexed_files << "\n";
+        std::cout << "Unmodified files:   " << stats.skipped_files << " (skipped instantly)\n";
+        std::cout << "Chunks generated:   " << stats.indexed_chunks << "\n";
+        std::cout << "Errors:             " << stats.error_files << "\n";
+        std::cout << "Total elapsed time: " << std::fixed << std::setprecision(2) << stats.elapsed_seconds << " seconds\n";
+        std::cout << "Database saved:     " << db_path << "\n";
+        std::cout << "Vector index:       " << vec_path << "\n";
+        return 0;
+    }
+
+    // Command: unindex <directory>
+    if ((command == "unindex" || command == "remove-dir") && argc >= 3) {
+        fs::path target_dir = argv[2];
+        gemfinder::Logger::info("Initializing search engine for unindexing...");
+        auto inf = gemfinder::EngineFactory::createEngine(model_path, gemfinder::kEmbeddingDim, n_threads);
+        gemfinder::SearchEngine engine(db_path, vec_path, std::move(inf));
+        if (!engine.initialize()) {
+            return 1;
+        }
+
+        std::cout << "\nRemoving index for: " << target_dir << "\n";
+        size_t removed = engine.removeDirectory(target_dir);
+        std::cout << "Operation completed! Files removed from index: " << removed << "\n";
         return 0;
     }
 
@@ -236,7 +253,7 @@ int main(int argc, char* argv[]) {
                 req.action = gemfinder::IpcAction::SearchText;
                 req.query = argv[2];
             } else {
-                gemfinder::Logger::error("Specificare una query testuale o --image <file> o --audio <file>");
+                gemfinder::Logger::error("Specify a text query or --image <file> or --audio <file>");
                 return 1;
             }
 
@@ -248,7 +265,7 @@ int main(int argc, char* argv[]) {
             if (resp_opt && resp_opt->success) {
                 results = std::move(resp_opt->results);
             } else {
-                gemfinder::Logger::error("Errore IPC dal demone: " + (resp_opt ? resp_opt->error_message : "timeout"));
+                gemfinder::Logger::error("Daemon IPC error: " + (resp_opt ? resp_opt->error_message : "timeout"));
                 return 1;
             }
         } else {
@@ -266,26 +283,28 @@ int main(int argc, char* argv[]) {
             } else if (argc >= 3) {
                 results = engine.search(argv[2], limit);
             } else {
-                gemfinder::Logger::error("Specificare una query testuale o --image <file> o --audio <file>");
+                gemfinder::Logger::error("Specify a text query or --image <file> or --audio <file>");
                 return 1;
             }
             auto end_t = std::chrono::high_resolution_clock::now();
             search_time_ms = std::chrono::duration<double, std::milli>(end_t - start_t).count();
         }
 
-        std::cout << "\n=== Risultati Ricerca (" << results.size() << " trovati in "
+        std::cout << "\n=== Search Results (" << results.size() << " found in "
                   << std::fixed << std::setprecision(2) << search_time_ms << " ms) ===\n\n";
 
         for (size_t i = 0; i < results.size(); ++i) {
             const auto& r = results[i];
             std::cout << " " << (i + 1) << ". " << r.filename
                       << "  [Score RRF: " << std::setprecision(4) << r.score << "]\n";
-            std::cout << "    Percorso: " << r.filepath << "\n";
-            std::cout << "    Punto:    ";
+            std::cout << "    Path:     " << r.filepath << "\n";
+            std::cout << "    Offset:   ";
             if (r.chunk_type == "text_paragraph") {
-                std::cout << "Riga " << r.start_offset << "\n";
+                std::cout << "Line " << r.start_offset << "\n";
+            } else if (r.chunk_type == "pdf_page") {
+                std::cout << "Page " << r.start_offset << "\n";
             } else if (r.chunk_type == "audio_segment") {
-                std::cout << "Minuto " << (r.start_offset / 60) << ":" << (r.start_offset % 60) << "\n";
+                std::cout << "Minute " << (r.start_offset / 60) << ":" << (r.start_offset % 60) << "\n";
             } else {
                 std::cout << r.chunk_type << "\n";
             }
@@ -308,13 +327,13 @@ int main(int argc, char* argv[]) {
 
         auto stats = engine.getStats();
         std::cout << "=== GemFinder Index Statistics ===\n";
-        std::cout << "File indicizzati:    " << stats.total_files << "\n";
-        std::cout << "Chunk totali:        " << stats.total_chunks << "\n";
-        std::cout << "Vettori in USearch:  " << stats.vector_count << "\n";
-        std::cout << "Dimensione Vettori:  " << stats.embedding_dim << " floats\n";
-        std::cout << "Modello Inferenza:   " << stats.inference_model << "\n";
-        std::cout << "DB Metadati:         " << stats.db_path << "\n";
-        std::cout << "Indice Vettoriale:   " << stats.vector_path << "\n";
+        std::cout << "Indexed Files:       " << stats.total_files << "\n";
+        std::cout << "Total Chunks:        " << stats.total_chunks << "\n";
+        std::cout << "USearch Vectors:     " << stats.vector_count << "\n";
+        std::cout << "Vector Dimension:    " << stats.embedding_dim << " floats\n";
+        std::cout << "Inference Model:     " << stats.inference_model << "\n";
+        std::cout << "Metadata DB:         " << stats.db_path << "\n";
+        std::cout << "Vector Index:        " << stats.vector_path << "\n";
         return 0;
     }
 
@@ -322,14 +341,14 @@ int main(int argc, char* argv[]) {
     if (command == "list") {
         gemfinder::Database db(db_path);
         if (!db.initializeSchema()) {
-            std::cerr << "Impossibile aprire il database: " << db_path << "\n";
+            std::cerr << "Unable to open database: " << db_path << "\n";
             return 1;
         }
 
         auto files = db.getAllFiles();
-        std::cout << "\n=== GemFinder File Registrati (" << files.size() << " file totali) ===\n\n";
+        std::cout << "\n=== GemFinder Registered Files (" << files.size() << " files total) ===\n\n";
         if (files.empty()) {
-            std::cout << "Nessun file presente nel database.\n";
+            std::cout << "No files present in database.\n";
             return 0;
         }
 
@@ -357,16 +376,16 @@ int main(int argc, char* argv[]) {
             std::cout << std::setw(4) << (i + 1) << ". " << mod_icon << " " << f.filename
                       << "  " << status_badge
                       << " (" << (f.file_size / 1024) << " KB)\n";
-            std::cout << "       Percorso: " << f.filepath.string() << "\n";
+            std::cout << "       Path: " << f.filepath.string() << "\n";
         }
 
-        std::cout << "\nRiepilogo: " << indexed_count << " indicizzati, "
-                  << pending_count << " in attesa, "
-                  << error_count << " con errori.\n\n";
+        std::cout << "\nSummary: " << indexed_count << " indexed, "
+                  << pending_count << " pending, "
+                  << error_count << " with errors.\n\n";
         return 0;
     }
 
-    std::cerr << "Comando sconosciuto: " << command << "\n";
+    std::cerr << "Unknown command: " << command << "\n";
     printUsage(argv[0]);
     return 1;
 }

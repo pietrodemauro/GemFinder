@@ -30,15 +30,15 @@ void CategoryHeader::setupUi() {
     QString border_color;
     if (modality_ == Modality::Text) {
         icon = "📄";
-        title = "DOCUMENTI & TESTO";
+        title = "DOCUMENTS & TEXT";
         border_color = "#89b4fa";
     } else if (modality_ == Modality::Image) {
         icon = "🖼️";
-        title = "IMMAGINI";
+        title = "IMAGES";
         border_color = "#f5bde6";
     } else {
         icon = "🎵";
-        title = "AUDIO & REGISTRAZIONI";
+        title = "AUDIO & RECORDINGS";
         border_color = "#a6da95";
     }
 
@@ -58,7 +58,7 @@ void CategoryHeader::setupUi() {
 
     layout->addStretch();
 
-    count_badge_ = new QLabel(QString("%1 risultati").arg(count_), this);
+    count_badge_ = new QLabel(QString("%1 results").arg(count_), this);
     count_badge_->setStyleSheet("background-color: #363a4f; color: #cad3f5; font-size: 11px; padding: 2px 8px; border-radius: 10px; font-weight: bold;");
     layout->addWidget(count_badge_);
 }
@@ -66,7 +66,7 @@ void CategoryHeader::setupUi() {
 void CategoryHeader::setCount(size_t count) {
     count_ = count;
     if (count_badge_) {
-        count_badge_->setText(QString("%1 risultati").arg(count_));
+        count_badge_->setText(QString("%1 results").arg(count_));
     }
 }
 

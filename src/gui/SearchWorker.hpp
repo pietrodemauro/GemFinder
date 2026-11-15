@@ -18,6 +18,7 @@ public:
     ~SearchWorker() override;
 
     void requestSearch(const IpcRequest& req);
+    void requestAction(const IpcRequest& req) { requestSearch(req); }
     [[nodiscard]] bool isDaemonConnected() const;
 
 signals:

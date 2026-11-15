@@ -78,13 +78,13 @@ bool FileWatcher::start() {
 
     inotify_fd_ = inotify_init1(IN_NONBLOCK | IN_CLOEXEC);
     if (inotify_fd_ < 0) {
-        Logger::error("FileWatcher: inotify_init1 fallito: " + std::string(std::strerror(errno)));
+        Logger::error("FileWatcher: inotify_init1 failed: " + std::string(std::strerror(errno)));
         return false;
     }
 
     running_.store(true);
     worker_thread_ = std::jthread([this]() { runLoop(); });
-    Logger::info("FileWatcher avviato con successo.");
+    Logger::info("FileWatcher started successfully.");
     return true;
 }
 
@@ -108,7 +108,7 @@ void FileWatcher::stop() {
     }
 
     debouncer_.clear();
-    Logger::info("FileWatcher arrestato.");
+    Logger::info("FileWatcher stopped.");
 }
 
 void FileWatcher::runLoop() {

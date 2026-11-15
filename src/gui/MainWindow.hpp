@@ -47,6 +47,8 @@ private slots:
     void onDaemonStatusChanged(bool is_running);
     void onSelectImageQuery();
     void onSelectAudioQuery();
+    void onIndexDirectory();
+    void onUnindexDirectory();
     void onFilterChanged(DisplayFilter filter);
 
 private:
@@ -60,6 +62,8 @@ private:
     QLineEdit* search_input_{nullptr};
     QPushButton* btn_image_search_{nullptr};
     QPushButton* btn_audio_search_{nullptr};
+    QPushButton* btn_index_dir_{nullptr};
+    QPushButton* btn_unindex_dir_{nullptr};
     QLabel* daemon_status_badge_{nullptr};
     QLabel* stats_bar_{nullptr};
 
@@ -86,7 +90,7 @@ private:
     std::vector<SearchResult> audio_results_;
 
     double last_latency_ms_{0.0};
-    QString active_query_mode_{"Testo"};
+    QString active_query_mode_{"Text"};
 };
 
 } // namespace gemfinder

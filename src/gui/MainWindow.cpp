@@ -1,14 +1,16 @@
 #include "gui/MainWindow.hpp"
 #include "gui/SearchResultItem.hpp"
 
-#include <QApplication>
-#include <QScreen>
+#include <QVBoxLayout>
+#include <QHBoxLayout>
 #include <QFileDialog>
-#include <QMimeData>
-#include <QKeyEvent>
 #include <QMessageBox>
-#include <iomanip>
-#include <sstream>
+#include <QDragEnterEvent>
+#include <QDropEvent>
+#include <QMimeData>
+#include <QFileInfo>
+#include <QDir>
+#include <QScrollBar>
 
 namespace gemfinder {
 
@@ -16,30 +18,34 @@ MainWindow::MainWindow(std::optional<fs::path> model_path, int n_threads, QWidge
     : QMainWindow(parent),
       search_worker_(new SearchWorker(std::move(model_path), n_threads, this)),
       debounce_timer_(new QTimer(this)) {
+
     setupUi();
     setupStyles();
 
-    // Center on active screen
-    resize(980, 720);
-    if (const QScreen* scr = window()->screen()) {
-        const QRect geom = scr->availableGeometry();
-        move((geom.width() - width()) / 2, (geom.height() - height()) / 3);
-    }
-
     setAcceptDrops(true);
+    resize(860, 640);
+    setMinimumSize(700, 500);
 
+    // Setup Debounce Timer (200 ms)
     debounce_timer_->setSingleShot(true);
-    debounce_timer_->setInterval(150); // 150ms debounce
-
-    connect(search_input_, &QLineEdit::textChanged, this, &MainWindow::onSearchTextChanged);
+    debounce_timer_->setInterval(200);
     connect(debounce_timer_, &QTimer::timeout, this, &MainWindow::onDebounceTimeout);
+
+    // SearchWorker Signals
     connect(search_worker_, &SearchWorker::searchCompleted, this, &MainWindow::onSearchCompleted);
     connect(search_worker_, &SearchWorker::searchError, this, &MainWindow::onSearchError);
     connect(search_worker_, &SearchWorker::daemonStatusChanged, this, &MainWindow::onDaemonStatusChanged);
 
+    // Search Input Signals
+    connect(search_input_, &QLineEdit::textChanged, this, &MainWindow::onSearchTextChanged);
+
+    // Button Signals
     connect(btn_image_search_, &QPushButton::clicked, this, &MainWindow::onSelectImageQuery);
     connect(btn_audio_search_, &QPushButton::clicked, this, &MainWindow::onSelectAudioQuery);
+    connect(btn_index_dir_, &QPushButton::clicked, this, &MainWindow::onIndexDirectory);
+    connect(btn_unindex_dir_, &QPushButton::clicked, this, &MainWindow::onUnindexDirectory);
 
+    // Filter Buttons Signals
     connect(btn_tab_all_, &QPushButton::clicked, this, [this]() { onFilterChanged(DisplayFilter::AllGrouped); });
     connect(btn_tab_text_, &QPushButton::clicked, this, [this]() { onFilterChanged(DisplayFilter::TextOnly); });
     connect(btn_tab_image_, &QPushButton::clicked, this, [this]() { onFilterChanged(DisplayFilter::ImageOnly); });
@@ -55,7 +61,7 @@ MainWindow::MainWindow(std::optional<fs::path> model_path, int n_threads, QWidge
 MainWindow::~MainWindow() = default;
 
 void MainWindow::setupUi() {
-    setWindowTitle("GemFinder — Ricerca Semantica Multimodale");
+    setWindowTitle("GemFinder — Multimodal Semantic Search");
 
     auto* central = new QWidget(this);
     setCentralWidget(central);
@@ -69,19 +75,19 @@ void MainWindow::setupUi() {
     top_row->setSpacing(10);
 
     search_input_ = new QLineEdit(this);
-    search_input_->setPlaceholderText("🔍 Cerca per significato (es. \"contratto affitto\", \"paesaggio tramonto\", \"assolo rock\")...");
+    search_input_->setPlaceholderText("🔍 Search by meaning (e.g. \"lease contract\", \"sunset landscape\", \"guitar solo\")...");
     search_input_->setClearButtonEnabled(true);
     top_row->addWidget(search_input_, 1);
 
-    btn_image_search_ = new QPushButton("🖼️ Immagine...", this);
-    btn_image_search_->setToolTip("Cerca file simili usando un'immagine query");
+    btn_image_search_ = new QPushButton("🖼️ Image...", this);
+    btn_image_search_->setToolTip("Search similar files using a query image");
     top_row->addWidget(btn_image_search_);
 
     btn_audio_search_ = new QPushButton("🎵 Audio...", this);
-    btn_audio_search_->setToolTip("Cerca file simili usando un file audio query");
+    btn_audio_search_->setToolTip("Search similar files using a query audio file");
     top_row->addWidget(btn_audio_search_);
 
-    daemon_status_badge_ = new QLabel("⚪ Controllo...", this);
+    daemon_status_badge_ = new QLabel("⚪ Checking...", this);
     top_row->addWidget(daemon_status_badge_);
 
     main_layout->addLayout(top_row);
@@ -90,16 +96,16 @@ void MainWindow::setupUi() {
     auto* filter_bar = new QHBoxLayout();
     filter_bar->setSpacing(8);
 
-    btn_tab_all_ = new QPushButton("🔘 Tutti (Raggruppati)", this);
+    btn_tab_all_ = new QPushButton("🔘 All (Grouped)", this);
     btn_tab_all_->setCheckable(true);
     btn_tab_all_->setChecked(true);
     filter_bar->addWidget(btn_tab_all_);
 
-    btn_tab_text_ = new QPushButton("📄 Testo (0)", this);
+    btn_tab_text_ = new QPushButton("📄 Text (0)", this);
     btn_tab_text_->setCheckable(true);
     filter_bar->addWidget(btn_tab_text_);
 
-    btn_tab_image_ = new QPushButton("🖼️ Immagini (0)", this);
+    btn_tab_image_ = new QPushButton("🖼️ Images (0)", this);
     btn_tab_image_->setCheckable(true);
     filter_bar->addWidget(btn_tab_image_);
 
@@ -108,6 +114,15 @@ void MainWindow::setupUi() {
     filter_bar->addWidget(btn_tab_audio_);
 
     filter_bar->addStretch();
+
+    btn_index_dir_ = new QPushButton("📁 Index Directory...", this);
+    btn_index_dir_->setToolTip("Select and index a directory into local database / daemon");
+    filter_bar->addWidget(btn_index_dir_);
+
+    btn_unindex_dir_ = new QPushButton("🗑️ Remove Directory...", this);
+    btn_unindex_dir_->setToolTip("Remove indexed directory from database to re-index from scratch");
+    filter_bar->addWidget(btn_unindex_dir_);
+
     main_layout->addLayout(filter_bar);
 
     // --- SCROLLABLE RESULTS CONTAINER ---
@@ -125,7 +140,7 @@ void MainWindow::setupUi() {
     main_layout->addWidget(scroll_area_, 1);
 
     // --- BOTTOM STATS BAR ---
-    stats_bar_ = new QLabel("Pronto per la ricerca semantica. Trascina un'immagine o un audio per ricerca multimodale.", this);
+    stats_bar_ = new QLabel("Ready for semantic search. Drag and drop an image or audio file for multimodal search.", this);
     main_layout->addWidget(stats_bar_);
 }
 
@@ -213,7 +228,7 @@ void MainWindow::triggerSearch() {
         image_results_.clear();
         audio_results_.clear();
         renderResults();
-        stats_bar_->setText("Pronto per la ricerca.");
+        stats_bar_->setText("Ready for search.");
         return;
     }
 
@@ -222,37 +237,37 @@ void MainWindow::triggerSearch() {
     req.query = q.toStdString();
     req.limit = 40; // Retrieve enough results to populate all modalities
 
-    active_query_mode_ = "Testo (" + q + ")";
-    stats_bar_->setText(QString("Ricerca in corso per \"%1\"...").arg(q));
+    active_query_mode_ = "Text (" + q + ")";
+    stats_bar_->setText(QString("Searching for \"%1\"...").arg(q));
     search_worker_->requestSearch(req);
 }
 
 void MainWindow::onSelectImageQuery() {
     QString path = QFileDialog::getOpenFileName(
         this,
-        "Seleziona un'immagine per ricerca per similarità",
+        "Select an image for similarity search",
         "",
-        "Immagini (*.png *.jpg *.jpeg *.bmp *.webp *.gif)"
+        "Images (*.png *.jpg *.jpeg *.bmp *.webp *.gif)"
     );
 
     if (path.isEmpty()) return;
 
-    search_input_->setText(QString("[Immagine: %1]").arg(QFileInfo(path).fileName()));
-    active_query_mode_ = "Immagine (" + QFileInfo(path).fileName() + ")";
+    search_input_->setText(QString("[Image: %1]").arg(QFileInfo(path).fileName()));
+    active_query_mode_ = "Image (" + QFileInfo(path).fileName() + ")";
 
     IpcRequest req;
     req.action = IpcAction::SearchImage;
     req.path = path.toStdString();
     req.limit = 40;
 
-    stats_bar_->setText(QString("Ricerca per similarità visiva con \"%1\"...").arg(path));
+    stats_bar_->setText(QString("Visual similarity search for \"%1\"...").arg(path));
     search_worker_->requestSearch(req);
 }
 
 void MainWindow::onSelectAudioQuery() {
     QString path = QFileDialog::getOpenFileName(
         this,
-        "Seleziona un file audio per ricerca semantica",
+        "Select an audio file for semantic search",
         "",
         "Audio (*.wav *.mp3 *.flac *.ogg *.m4a *.aac)"
     );
@@ -267,11 +282,93 @@ void MainWindow::onSelectAudioQuery() {
     req.path = path.toStdString();
     req.limit = 40;
 
-    stats_bar_->setText(QString("Ricerca per similarità acustica con \"%1\"...").arg(path));
+    stats_bar_->setText(QString("Acoustic similarity search for \"%1\"...").arg(path));
     search_worker_->requestSearch(req);
 }
 
+void MainWindow::onIndexDirectory() {
+    QString dir = QFileDialog::getExistingDirectory(
+        this,
+        "Select directory to index",
+        QDir::homePath(),
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks
+    );
+
+    if (dir.isEmpty()) return;
+
+    stats_bar_->setText(QString("⏳ Indexing in progress for \"%1\"...").arg(dir));
+    IpcRequest req;
+    req.action = IpcAction::IndexDirectory;
+    req.path = dir.toStdString();
+    search_worker_->requestAction(req);
+}
+
+void MainWindow::onUnindexDirectory() {
+    QString dir = QFileDialog::getExistingDirectory(
+        this,
+        "Select directory to remove from index",
+        QDir::homePath(),
+        QFileDialog::ShowDirsOnly | QFileDialog::DontResolveSymlinks
+    );
+
+    if (dir.isEmpty()) return;
+
+    auto reply = QMessageBox::question(
+        this,
+        "Confirm Index Removal",
+        QString("Are you sure you want to remove the index for directory:\n\n%1\n\nIndexed files and associated vectors will be deleted from the database to allow clean re-indexing.\n(Your original files on disk will NOT be touched).").arg(dir),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No
+    );
+
+    if (reply != QMessageBox::Yes) return;
+
+    stats_bar_->setText(QString("⏳ Removing index for \"%1\" in progress...").arg(dir));
+    IpcRequest req;
+    req.action = IpcAction::UnindexDirectory;
+    req.path = dir.toStdString();
+    search_worker_->requestAction(req);
+}
+
 void MainWindow::onSearchCompleted(const IpcResponse& response) {
+    if (response.action == IpcAction::IndexDirectory) {
+        stats_bar_->setText(QString("✅ Indexing completed: %1 files indexed (%2 chunks) in %3 ms")
+            .arg(response.total_files)
+            .arg(response.total_chunks)
+            .arg(response.latency_ms, 0, 'f', 1));
+        QMessageBox::information(
+            this,
+            "Indexing Completed",
+            QString("The directory was indexed successfully!\n\nFiles indexed: %1\nTotal chunks: %2\nTime elapsed: %3 ms")
+                .arg(response.total_files)
+                .arg(response.total_chunks)
+                .arg(response.latency_ms, 0, 'f', 1)
+        );
+        return;
+    }
+
+    if (response.action == IpcAction::UnindexDirectory) {
+        stats_bar_->setText(QString("🗑️ Index removed: %1 files deleted from index in %2 ms")
+            .arg(response.total_files)
+            .arg(response.latency_ms, 0, 'f', 1));
+        QMessageBox::information(
+            this,
+            "Removal Completed",
+            QString("Index removed successfully!\n\nFiles deleted from database: %1\nTime: %2 ms\n\nYou can now re-index the directory if needed.")
+                .arg(response.total_files)
+                .arg(response.latency_ms, 0, 'f', 1)
+        );
+        all_results_.clear();
+        text_results_.clear();
+        image_results_.clear();
+        audio_results_.clear();
+        btn_tab_text_->setText("📄 Text (0)");
+        btn_tab_image_->setText("🖼️ Images (0)");
+        btn_tab_audio_->setText("🎵 Audio (0)");
+        renderResults();
+        return;
+    }
+
     all_results_ = response.results;
     last_latency_ms_ = response.latency_ms;
 
@@ -292,28 +389,28 @@ void MainWindow::onSearchCompleted(const IpcResponse& response) {
     }
 
     // Update filter tab labels
-    btn_tab_text_->setText(QString("📄 Testo (%1)").arg(text_results_.size()));
-    btn_tab_image_->setText(QString("🖼️ Immagini (%1)").arg(image_results_.size()));
+    btn_tab_text_->setText(QString("📄 Text (%1)").arg(text_results_.size()));
+    btn_tab_image_->setText(QString("🖼️ Images (%1)").arg(image_results_.size()));
     btn_tab_audio_->setText(QString("🎵 Audio (%1)").arg(audio_results_.size()));
 
     renderResults();
 
-    stats_bar_->setText(QString("⚡ %1 risultati trovati in %2 ms | %3")
+    stats_bar_->setText(QString("⚡ %1 results found in %2 ms | %3")
         .arg(all_results_.size())
         .arg(last_latency_ms_, 0, 'f', 2)
         .arg(active_query_mode_));
 }
 
 void MainWindow::onSearchError(const QString& error_msg) {
-    stats_bar_->setText(QString("⚠️ Errore di ricerca: %1").arg(error_msg));
+    stats_bar_->setText(QString("⚠️ Search error: %1").arg(error_msg));
 }
 
 void MainWindow::onDaemonStatusChanged(bool is_running) {
     if (is_running) {
-        daemon_status_badge_->setText("🟢 Demone Connesso");
+        daemon_status_badge_->setText("🟢 Daemon Connected");
         daemon_status_badge_->setStyleSheet("font-size: 11px; padding: 4px 10px; border-radius: 8px; background-color: #1e3a29; color: #a6da95; font-weight: bold;");
     } else {
-        daemon_status_badge_->setText("🟠 Indice Locale");
+        daemon_status_badge_->setText("🟠 Local Index");
         daemon_status_badge_->setStyleSheet("font-size: 11px; padding: 4px 10px; border-radius: 8px; background-color: #3d2b1f; color: #f5a97f; font-weight: bold;");
     }
 }
@@ -345,8 +442,8 @@ void MainWindow::renderResults() {
 
     if (all_results_.empty()) {
         auto* empty_label = new QLabel(
-            "Nessun risultato da mostrare.\n"
-            "Inizia a digitare per cercare, oppure trascina un file di immagine o audio nella finestra.",
+            "No results to display.\n"
+            "Start typing to search, or drag and drop an image or audio file into the window.",
             results_container_);
         empty_label->setAlignment(Qt::AlignCenter);
         empty_label->setStyleSheet("color: #6e738d; font-size: 14px; margin-top: 60px; line-height: 1.5;");
@@ -368,7 +465,7 @@ void MainWindow::renderResults() {
     };
 
     if (current_filter_ == DisplayFilter::AllGrouped) {
-        // Grouped by Text, Images, and Audio as requested!
+        // Grouped by Text, Images, and Audio
         renderGroup(Modality::Text, text_results_);
         renderGroup(Modality::Image, image_results_);
         renderGroup(Modality::Audio, audio_results_);
@@ -412,13 +509,13 @@ void MainWindow::dropEvent(QDropEvent* event) {
     QString ext = fi.suffix().toLower();
 
     if (ext == "png" || ext == "jpg" || ext == "jpeg" || ext == "bmp" || ext == "webp") {
-        search_input_->setText(QString("[Immagine: %1]").arg(fi.fileName()));
-        active_query_mode_ = "Immagine (" + fi.fileName() + ")";
+        search_input_->setText(QString("[Image: %1]").arg(fi.fileName()));
+        active_query_mode_ = "Image (" + fi.fileName() + ")";
         IpcRequest req;
         req.action = IpcAction::SearchImage;
         req.path = file_path.toStdString();
         req.limit = 40;
-        stats_bar_->setText(QString("Ricerca per immagine trascinata: %1...").arg(fi.fileName()));
+        stats_bar_->setText(QString("Searching for dropped image: %1...").arg(fi.fileName()));
         search_worker_->requestSearch(req);
     } else if (ext == "wav" || ext == "mp3" || ext == "flac" || ext == "ogg" || ext == "m4a") {
         search_input_->setText(QString("[Audio: %1]").arg(fi.fileName()));
@@ -427,7 +524,7 @@ void MainWindow::dropEvent(QDropEvent* event) {
         req.action = IpcAction::SearchAudio;
         req.path = file_path.toStdString();
         req.limit = 40;
-        stats_bar_->setText(QString("Ricerca per audio trascinato: %1...").arg(fi.fileName()));
+        stats_bar_->setText(QString("Searching for dropped audio: %1...").arg(fi.fileName()));
         search_worker_->requestSearch(req);
     } else {
         // Assume text file

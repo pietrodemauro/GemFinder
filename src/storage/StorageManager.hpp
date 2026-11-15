@@ -26,6 +26,7 @@ public:
     bool indexFile(FileRecord file, const std::vector<std::pair<ChunkRecord, Embedding>>& chunks_with_embeddings);
     bool removeFile(const fs::path& path);
     bool removeFileById(FileId file_id);
+    size_t removeDirectory(const fs::path& dir_path);
 
     // Hybrid Search: vector + FTS5 BM25 with Reciprocal Rank Fusion (RRF)
     [[nodiscard]] std::vector<SearchResult> hybridSearch(

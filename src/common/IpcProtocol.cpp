@@ -46,6 +46,7 @@ std::string serializeRequest(const IpcRequest& req) {
             out += "\t" + std::to_string(req.limit) + "\t" + sanitizeString(req.path);
             break;
         case IpcAction::IndexDirectory:
+        case IpcAction::UnindexDirectory:
             out += "\t" + sanitizeString(req.path);
             break;
         default:
@@ -72,7 +73,7 @@ bool deserializeRequest(std::string_view raw, IpcRequest& out_req) {
     } else if ((out_req.action == IpcAction::SearchImage || out_req.action == IpcAction::SearchAudio) && parts.size() >= 3) {
         try { out_req.limit = std::stoul(parts[1]); } catch (...) { out_req.limit = 10; }
         out_req.path = parts[2];
-    } else if (out_req.action == IpcAction::IndexDirectory && parts.size() >= 2) {
+    } else if ((out_req.action == IpcAction::IndexDirectory || out_req.action == IpcAction::UnindexDirectory) && parts.size() >= 2) {
         out_req.path = parts[1];
     }
 
@@ -88,8 +89,8 @@ std::string serializeResponse(const IpcResponse& resp) {
 
     out = "OK\t" + std::to_string(resp.latency_ms);
 
-    if (resp.total_files > 0 || !resp.model_name.empty()) {
-        // Stats response
+    if (resp.results.empty()) {
+        // Stats response or Ack response (IndexDirectory, UnindexDirectory, etc.)
         out += "\tSTATS\t" + std::to_string(resp.total_files) +
                "\t" + std::to_string(resp.total_chunks) +
                "\t" + sanitizeString(resp.model_name) + "\n";

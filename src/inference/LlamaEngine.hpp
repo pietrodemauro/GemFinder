@@ -6,6 +6,7 @@
 
 struct llama_model;
 struct llama_context;
+struct mtmd_context;
 
 namespace gemfinder {
 
@@ -30,16 +31,19 @@ public:
     [[nodiscard]] Embedding embedAudio(std::span<const float> pcm_samples, uint32_t sample_rate) override;
 
     [[nodiscard]] size_t rawModelDimension() const noexcept;
+    [[nodiscard]] bool hasVisionSupport() const noexcept;
 
 private:
     llama_model* model_{nullptr};
     llama_context* ctx_{nullptr};
+    mtmd_context* ctx_mtmd_{nullptr};
     size_t target_dim_{kEmbeddingDim};
     int n_threads_{0};
     std::string model_name_;
     mutable std::mutex mutex_;
 
     void unload();
+    bool loadVisionProjector(const fs::path& model_path);
 };
 
 } // namespace gemfinder

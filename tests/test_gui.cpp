@@ -32,6 +32,12 @@ void testModalityDetection() {
     r3.filepath = "/tmp/song.wav";
     assert(detectResultModality(r3) == Modality::Audio);
 
+    SearchResult r_pdf;
+    r_pdf.chunk_type = "pdf_page";
+    r_pdf.filepath = "/tmp/report.pdf";
+    r_pdf.start_offset = 3;
+    assert(detectResultModality(r_pdf) == Modality::Text);
+
     // Fallback detection via extension
     SearchResult r4;
     r4.chunk_type = "";
@@ -123,7 +129,7 @@ void testWidgetsInstantiation(int argc, char** argv) {
     // Test ResultCard
     SearchResult item;
     item.filename = "example.cpp";
-    item.filepath = "/home/test/example.cpp";
+    item.filepath = "/tmp/example.cpp";
     item.preview_text = "int main() { return 0; }";
     item.chunk_type = "text_paragraph";
     item.start_offset = 42;

@@ -112,9 +112,9 @@ int main(int argc, char* argv[]) {
     printHeader("1. Indexing & Ingestion Throughput (SQLite WAL + USearch)");
 
     std::vector<std::string> sample_words = {
-        "contratto", "locazione", "sviluppo", "software", "algoritmo",
-        "vettoriale", "multimodale", "audio", "immagine", "database",
-        "prestazioni", "c++20", "ottimizzazione", "architettura", "kernel"
+        "contract", "lease", "development", "software", "algorithm",
+        "vector", "multimodal", "audio", "image", "database",
+        "performance", "c++20", "optimization", "architecture", "kernel"
     };
 
     std::mt19937 rng(42);
@@ -182,9 +182,9 @@ int main(int argc, char* argv[]) {
 
     const size_t test_queries_count = 1000;
     std::vector<std::string> query_pool = {
-        "contratto locazione", "algoritmo vettoriale c++20", "sviluppo software",
-        "prestazioni kernel", "architettura multimodale database", "ottimizzazione audio",
-        "immagine vettoriale", "ricerca semantica", "database sqlite", "sistema memoria"
+        "lease agreement contract", "c++20 vector algorithm", "software engineering",
+        "kernel performance", "multimodal architecture database", "audio signal processing",
+        "vector image similarity", "semantic search engine", "sqlite database", "memory layout"
     };
 
     // A: Vector Search (HNSW)

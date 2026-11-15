@@ -20,7 +20,7 @@ SearchEngine::~SearchEngine() {
 
 bool SearchEngine::initialize() {
     if (!storage_->initialize()) {
-        Logger::error("SearchEngine: Impossibile inizializzare lo StorageManager.");
+        Logger::error("SearchEngine: Failed to initialize StorageManager.");
         return false;
     }
     return true;
@@ -57,16 +57,22 @@ bool SearchEngine::indexSingleFile(const fs::path& path) {
 
         return storage_->indexFile(payload.file, chunks_with_embeddings);
     } catch (const std::exception& e) {
-        Logger::error("SearchEngine: Errore durante l'indicizzazione di " + path.string() + ": " + e.what());
+        Logger::error("SearchEngine: Error indexing " + path.string() + ": " + e.what());
         return false;
     } catch (...) {
-        Logger::error("SearchEngine: Errore sconosciuto durante l'indicizzazione di " + path.string());
+        Logger::error("SearchEngine: Unknown error indexing " + path.string());
         return false;
     }
 }
 
 bool SearchEngine::removeFile(const fs::path& path) {
     return storage_->removeFile(path);
+}
+
+size_t SearchEngine::removeDirectory(const fs::path& dir_path) {
+    size_t removed = storage_->removeDirectory(dir_path);
+    Logger::info("SearchEngine: Removed " + std::to_string(removed) + " files from index for directory: " + dir_path.string());
+    return removed;
 }
 
 IndexStats SearchEngine::indexDirectory(
@@ -148,7 +154,7 @@ std::vector<SearchResult> SearchEngine::searchByImage(
 ) {
     auto processed_opt = preprocessor_.image().processFile(image_path);
     if (!processed_opt) {
-        Logger::error("SearchEngine: Impossibile caricare immagine per query: " + image_path.string());
+        Logger::error("SearchEngine: Unable to load query image: " + image_path.string());
         return {};
     }
 
@@ -171,7 +177,7 @@ std::vector<SearchResult> SearchEngine::searchByAudio(
 ) {
     auto processed_opt = preprocessor_.audio().processFile(audio_path);
     if (!processed_opt || processed_opt->chunks.empty()) {
-        Logger::error("SearchEngine: Impossibile caricare audio per query: " + audio_path.string());
+        Logger::error("SearchEngine: Unable to load query audio: " + audio_path.string());
         return {};
     }
 

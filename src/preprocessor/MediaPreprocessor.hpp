@@ -2,6 +2,7 @@
 
 #include "common/Types.hpp"
 #include "preprocessor/TextPreprocessor.hpp"
+#include "preprocessor/PdfPreprocessor.hpp"
 #include "preprocessor/ImagePreprocessor.hpp"
 #include "preprocessor/AudioPreprocessor.hpp"
 #include <filesystem>
@@ -35,11 +36,13 @@ public:
 
     // Direct access to sub-preprocessors
     [[nodiscard]] const TextPreprocessor& text() const noexcept { return text_; }
+    [[nodiscard]] const PdfPreprocessor& pdf() const noexcept { return pdf_; }
     [[nodiscard]] const ImagePreprocessor& image() const noexcept { return image_; }
     [[nodiscard]] const AudioPreprocessor& audio() const noexcept { return audio_; }
 
 private:
     TextPreprocessor text_;
+    PdfPreprocessor pdf_;
     ImagePreprocessor image_;
     AudioPreprocessor audio_;
 };

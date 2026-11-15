@@ -7,11 +7,12 @@
 #include "daemon/IpcServer.hpp"
 #include "daemon/IpcClient.hpp"
 #include "common/Logger.hpp"
-
-#include <filesystem>
 #include <fstream>
-#include <thread>
+#include <iostream>
 #include <chrono>
+#include <thread>
+#include <atomic>
+#include <filesystem>
 
 namespace fs = std::filesystem;
 
@@ -37,7 +38,7 @@ void testDebouncer() {
     assert(expired[0].second == gemfinder::FileEvent::Modified);
     assert(debouncer.pendingCount() == 0);
 
-    gemfinder::Logger::info("Test 1 completato con successo!");
+    gemfinder::Logger::info("Test 1 completed successfully!");
 }
 
 void testIpcServerAndClient() {
@@ -51,10 +52,10 @@ void testIpcServerAndClient() {
             resp.latency_ms = 0.05;
         } else if (req.action == gemfinder::IpcAction::SearchText) {
             gemfinder::SearchResult r;
-            r.filename = "risultato_test.txt";
-            r.filepath = "/tmp/risultato_test.txt";
+            r.filename = "test_result.txt";
+            r.filepath = "/tmp/test_result.txt";
             r.score = 0.95;
-            r.preview_text = "Anteprima del testo trovato via IPC";
+            r.preview_text = "Preview text found via IPC";
             resp.results.push_back(r);
             resp.latency_ms = 0.25;
         }
@@ -68,21 +69,21 @@ void testIpcServerAndClient() {
 
     gemfinder::IpcRequest req;
     req.action = gemfinder::IpcAction::SearchText;
-    req.query = "test semantico";
+    req.query = "semantic test";
     req.limit = 5;
 
     auto resp_opt = client.send(req);
     assert(resp_opt.has_value());
     assert(resp_opt->success);
     assert(resp_opt->results.size() == 1);
-    assert(resp_opt->results[0].filename == "risultato_test.txt");
+    assert(resp_opt->results[0].filename == "test_result.txt");
 
     gemfinder::Logger::info("IPC Roundtrip OK: Latency=" + std::to_string(resp_opt->latency_ms) + " ms, File=" + resp_opt->results[0].filename);
 
     server.stop();
     assert(!client.isDaemonRunning());
 
-    gemfinder::Logger::info("Test 2 completato con successo!");
+    gemfinder::Logger::info("Test 2 completed successfully!");
 }
 
 void testFileWatcher() {
@@ -102,27 +103,27 @@ void testFileWatcher() {
     assert(watcher.addWatch(test_dir));
 
     // Create file
-    fs::path f = test_dir / "nuovo_file.txt";
+    fs::path f = test_dir / "new_file.txt";
     {
         std::ofstream out(f);
-        out << "Contenuto del file monitorato";
+        out << "Watched file sample content";
     }
 
     // Wait for inotify + debouncer
     std::this_thread::sleep_for(std::chrono::milliseconds(250));
     assert(events_received.load() >= 1);
-    gemfinder::Logger::info("FileWatcher rilevato evento con successo (event count: " + std::to_string(events_received.load()) + ")");
+    gemfinder::Logger::info("FileWatcher detected event successfully (event count: " + std::to_string(events_received.load()) + ")");
 
     watcher.stop();
     fs::remove_all(test_dir);
-    gemfinder::Logger::info("Test 3 completato con successo!");
+    gemfinder::Logger::info("Test 3 completed successfully!");
 }
 
 int main() {
-    gemfinder::Logger::info("=== Avvio Test Suite Daemon, inotify Watcher & IPC (Step 5) ===");
+    gemfinder::Logger::info("=== Starting Daemon, inotify Watcher & IPC Test Suite (Step 5) ===");
     testDebouncer();
     testIpcServerAndClient();
     testFileWatcher();
-    gemfinder::Logger::info("=== TUTTI I TEST DELLO STEP 5 SUPERATI CON SUCCESSO! ===");
+    gemfinder::Logger::info("=== ALL STEP 5 TESTS PASSED SUCCESSFULLY! ===");
     return 0;
 }

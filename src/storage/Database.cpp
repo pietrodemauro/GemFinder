@@ -16,7 +16,7 @@ Database::Database(const fs::path& db_path) : path_(db_path) {
     if (rc != SQLITE_OK) {
         std::string err = sqlite3_errmsg(db_);
         close();
-        Logger::error("Impossibile aprire il database SQLite: " + err);
+        Logger::error("Unable to open SQLite database: " + err);
         return;
     }
 

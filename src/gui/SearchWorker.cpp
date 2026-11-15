@@ -50,7 +50,7 @@ IpcResponse SearchWorker::runLocalSearch(const IpcRequest& req) {
     }
     fs::path vec_path = db_path.parent_path() / (db_path.stem().string() + ".usearch");
     if (!fs::exists(db_path)) {
-        resp.error_message = "Demone non in esecuzione e nessun database locale trovato (gemfinder_metadata.db).";
+        resp.error_message = "Daemon is not running and no local database found (gemfinder_metadata.db).";
         return resp;
     }
 
@@ -58,7 +58,7 @@ IpcResponse SearchWorker::runLocalSearch(const IpcRequest& req) {
         auto engine = EngineFactory::createEngine(model_path_, kEmbeddingDim, n_threads_);
         local_engine_ = std::make_unique<SearchEngine>(db_path, vec_path, std::move(engine));
         if (!local_engine_->initialize()) {
-            resp.error_message = "Impossibile inizializzare il motore di ricerca locale.";
+            resp.error_message = "Unable to initialize local search engine.";
             local_engine_.reset();
             return resp;
         }
@@ -75,8 +75,17 @@ IpcResponse SearchWorker::runLocalSearch(const IpcRequest& req) {
         } else if (req.action == IpcAction::SearchAudio) {
             resp.results = local_engine_->searchByAudio(req.path, req.limit);
             resp.success = true;
+        } else if (req.action == IpcAction::IndexDirectory) {
+            auto stats = local_engine_->indexDirectory(req.path);
+            resp.total_files = stats.indexed_files;
+            resp.total_chunks = stats.indexed_chunks;
+            resp.success = true;
+        } else if (req.action == IpcAction::UnindexDirectory) {
+            size_t removed = local_engine_->removeDirectory(req.path);
+            resp.total_files = removed;
+            resp.success = true;
         } else {
-            resp.error_message = "Azione non supportata in modalità locale.";
+            resp.error_message = "Action not supported in local mode.";
         }
     } catch (const std::exception& e) {
         resp.error_message = e.what();
@@ -109,8 +118,9 @@ void SearchWorker::run() {
             checkDaemonStatus();
 
             IpcResponse response;
+            int timeout_ms = (req.action == IpcAction::IndexDirectory || req.action == IpcAction::UnindexDirectory) ? 120000 : 4000;
             if (daemon_running_) {
-                auto opt_resp = ipc_client_.send(req, 4000);
+                auto opt_resp = ipc_client_.send(req, timeout_ms);
                 if (opt_resp.has_value()) {
                     response = *opt_resp;
                 } else {
@@ -120,6 +130,7 @@ void SearchWorker::run() {
             } else {
                 response = runLocalSearch(req);
             }
+            response.action = req.action;
 
             if (response.success) {
                 emit searchCompleted(response);

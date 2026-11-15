@@ -17,19 +17,21 @@ enum class IpcAction {
     SearchImage,
     SearchAudio,
     IndexDirectory,
+    UnindexDirectory,
     GetStats,
     Unknown
 };
 
 [[nodiscard]] inline std::string actionToString(IpcAction action) {
     switch (action) {
-        case IpcAction::Ping:           return "ping";
-        case IpcAction::SearchText:     return "search_text";
-        case IpcAction::SearchImage:    return "search_image";
-        case IpcAction::SearchAudio:    return "search_audio";
-        case IpcAction::IndexDirectory: return "index_dir";
-        case IpcAction::GetStats:       return "get_stats";
-        case IpcAction::Unknown:        return "unknown";
+        case IpcAction::Ping:             return "ping";
+        case IpcAction::SearchText:       return "search_text";
+        case IpcAction::SearchImage:      return "search_image";
+        case IpcAction::SearchAudio:      return "search_audio";
+        case IpcAction::IndexDirectory:   return "index_dir";
+        case IpcAction::UnindexDirectory: return "unindex_dir";
+        case IpcAction::GetStats:         return "get_stats";
+        case IpcAction::Unknown:          return "unknown";
     }
     return "unknown";
 }
@@ -40,6 +42,7 @@ enum class IpcAction {
     if (sv == "search_image") return IpcAction::SearchImage;
     if (sv == "search_audio") return IpcAction::SearchAudio;
     if (sv == "index_dir")    return IpcAction::IndexDirectory;
+    if (sv == "unindex_dir")  return IpcAction::UnindexDirectory;
     if (sv == "get_stats")    return IpcAction::GetStats;
     return IpcAction::Unknown;
 }
@@ -52,6 +55,7 @@ struct IpcRequest {
 };
 
 struct IpcResponse {
+    IpcAction action{IpcAction::Unknown};
     bool success{false};
     std::string error_message;
     double latency_ms{0.0};
