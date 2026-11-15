@@ -165,9 +165,6 @@ std::vector<SearchResult> StorageManager::hybridSearch(
         int valid_rank = 1;
         for (size_t i = 0; i < vec_matches.size(); ++i) {
             const auto& vm = vec_matches[i];
-            if (min_similarity > 0.0f && vm.similarity < min_similarity) {
-                continue;
-            }
             int rank = valid_rank++;
             auto& cand = candidate_map[vm.chunk_id];
             cand.chunk_id = vm.chunk_id;
@@ -194,19 +191,20 @@ std::vector<SearchResult> StorageManager::hybridSearch(
         return final_results;
     }
 
-    // 3. Collect and sort candidates by RRF score descending
+    // 3. Filter candidates based on threshold and calculate final scores
     std::vector<FusionCandidate> sorted_candidates;
     sorted_candidates.reserve(candidate_map.size());
     for (auto& [id, cand] : candidate_map) {
-        // If query was vector-only, fall back to pure vector similarity as score
+        // If query was vector-only (Image / Audio)
         if (vector_query.has_value() && (!text_query.has_value() || text_query->empty())) {
             cand.rrf_score = static_cast<double>(cand.vector_similarity);
             if (min_similarity > 0.0f && cand.vector_similarity < min_similarity) {
                 continue;
             }
         } else if (min_similarity > 0.0f) {
-            // If candidate has vector match below threshold and no lexical match, skip it
-            if (cand.rank_vector > 0 && cand.vector_similarity < min_similarity && cand.rank_lexical == 0) {
+            // If candidate matched ONLY via vector (semantic match without exact keyword hit):
+            // It MUST meet the minimum similarity threshold.
+            if (cand.rank_vector > 0 && cand.rank_lexical == 0 && cand.vector_similarity < min_similarity) {
                 continue;
             }
         }

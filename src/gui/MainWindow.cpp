@@ -722,20 +722,23 @@ void MainWindow::applyThresholdFilter() {
     image_results_.clear();
     audio_results_.clear();
 
+    bool is_vector_query = active_query_mode_.startsWith("Image") || active_query_mode_.startsWith("Audio");
+
     for (const auto& item : raw_results_) {
-        Modality m = detectResultModality(item);
-        if (m == Modality::Image || m == Modality::Audio) {
-            if (current_threshold_ > 0.0f && item.score < current_threshold_) {
+        if (is_vector_query) {
+            float sim = item.similarity > 0.0f ? item.similarity : static_cast<float>(item.score);
+            if (current_threshold_ > 0.0f && sim < current_threshold_) {
                 continue;
             }
         } else {
             if (current_threshold_ > 0.0f) {
-                if (item.similarity > 0.0f && item.similarity < current_threshold_ && item.rank_lexical == 0) {
+                if (item.rank_vector > 0 && item.rank_lexical == 0 && item.similarity < current_threshold_) {
                     continue;
                 }
             }
         }
 
+        Modality m = detectResultModality(item);
         all_results_.push_back(item);
         if (m == Modality::Text) {
             text_results_.push_back(item);
