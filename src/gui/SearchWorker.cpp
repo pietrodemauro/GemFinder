@@ -6,8 +6,8 @@
 
 namespace gemfinder {
 
-SearchWorker::SearchWorker(std::optional<fs::path> model_path, int n_threads, QObject* parent)
-    : QThread(parent), model_path_(std::move(model_path)), n_threads_(n_threads) {
+SearchWorker::SearchWorker(std::optional<fs::path> model_path, int n_threads, bool use_gpu, QObject* parent)
+    : QThread(parent), model_path_(std::move(model_path)), n_threads_(n_threads), use_gpu_(use_gpu) {
     checkDaemonStatus();
     start();
 }
@@ -18,6 +18,46 @@ SearchWorker::~SearchWorker() {
         abort_ = true;
     }
     wait();
+}
+
+void SearchWorker::setComputeDevice(bool use_gpu) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        use_gpu_ = use_gpu;
+    }
+    IpcRequest req;
+    req.action = IpcAction::ConfigureEngine;
+    req.use_gpu = use_gpu;
+    req.model_path = model_path_.has_value() ? model_path_->string() : "";
+    requestAction(req);
+}
+
+void SearchWorker::setModelPath(const fs::path& model_path) {
+    {
+        std::lock_guard<std::mutex> lock(mutex_);
+        model_path_ = model_path;
+    }
+    IpcRequest req;
+    req.action = IpcAction::ConfigureEngine;
+    req.use_gpu = use_gpu_;
+    req.model_path = model_path.string();
+    requestAction(req);
+}
+
+bool SearchWorker::useGpu() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    return use_gpu_;
+}
+
+std::string SearchWorker::currentModelName() const {
+    std::lock_guard<std::mutex> lock(mutex_);
+    if (local_engine_) {
+        return local_engine_->inference().modelName();
+    }
+    if (model_path_.has_value()) {
+        return model_path_->filename().string();
+    }
+    return "embeddinggemma-2.gguf";
 }
 
 bool SearchWorker::isDaemonConnected() const {
@@ -55,7 +95,7 @@ IpcResponse SearchWorker::runLocalSearch(const IpcRequest& req) {
     }
 
     if (!local_engine_) {
-        auto engine = EngineFactory::createEngine(model_path_, kEmbeddingDim, n_threads_);
+        auto engine = EngineFactory::createEngine(model_path_, kEmbeddingDim, n_threads_, use_gpu_);
         local_engine_ = std::make_unique<SearchEngine>(db_path, vec_path, std::move(engine));
         if (!local_engine_->initialize()) {
             resp.error_message = "Unable to initialize local search engine.";
@@ -83,6 +123,23 @@ IpcResponse SearchWorker::runLocalSearch(const IpcRequest& req) {
         } else if (req.action == IpcAction::UnindexDirectory) {
             size_t removed = local_engine_->removeDirectory(req.path);
             resp.total_files = removed;
+            resp.success = true;
+        } else if (req.action == IpcAction::UnindexFile) {
+            bool ok = local_engine_->removeFile(req.path);
+            resp.success = ok;
+            if (!ok) resp.error_message = "File not found in index.";
+        } else if (req.action == IpcAction::ConfigureEngine) {
+            use_gpu_ = req.use_gpu;
+            if (!req.model_path.empty()) {
+                model_path_ = req.model_path;
+            }
+            if (local_engine_) {
+                auto new_inf = EngineFactory::createEngine(model_path_, kEmbeddingDim, n_threads_, use_gpu_);
+                local_engine_->setInferenceEngine(std::move(new_inf));
+                resp.model_name = local_engine_->inference().modelName();
+            } else {
+                resp.model_name = model_path_.has_value() ? model_path_->filename().string() : "Default";
+            }
             resp.success = true;
         } else {
             resp.error_message = "Action not supported in local mode.";
@@ -118,7 +175,12 @@ void SearchWorker::run() {
             checkDaemonStatus();
 
             IpcResponse response;
-            int timeout_ms = (req.action == IpcAction::IndexDirectory || req.action == IpcAction::UnindexDirectory) ? 120000 : 4000;
+            int timeout_ms = 4000;
+            if (req.action == IpcAction::IndexDirectory || req.action == IpcAction::UnindexDirectory) {
+                timeout_ms = 120000;
+            } else if (req.action == IpcAction::ConfigureEngine) {
+                timeout_ms = 30000;
+            }
             if (daemon_running_) {
                 auto opt_resp = ipc_client_.send(req, timeout_ms);
                 if (opt_resp.has_value()) {

@@ -206,4 +206,10 @@ EngineStats SearchEngine::getStats() {
     return stats;
 }
 
+void SearchEngine::setInferenceEngine(std::unique_ptr<InferenceEngine> new_engine) {
+    if (new_engine) {
+        inference_ = std::move(new_engine);
+    }
+}
+
 } // namespace gemfinder

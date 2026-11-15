@@ -27,9 +27,10 @@ int resolveDefaultThreads(int n_threads) {
 
 } // namespace
 
-LlamaEngine::LlamaEngine(size_t target_dimension, int n_threads)
+LlamaEngine::LlamaEngine(size_t target_dimension, int n_threads, bool use_gpu)
     : target_dim_(target_dimension),
-      n_threads_(resolveDefaultThreads(n_threads)) {
+      n_threads_(resolveDefaultThreads(n_threads)),
+      use_gpu_(use_gpu) {
     // Suppress verbose llama.cpp and mtmd debug/info spam on stderr
     auto log_cb = [](ggml_log_level level, const char* text, void* user_data) {
         (void)user_data;
@@ -69,6 +70,7 @@ LlamaEngine::LlamaEngine(LlamaEngine&& other) noexcept {
     ctx_mtmd_ = other.ctx_mtmd_;
     target_dim_ = other.target_dim_;
     n_threads_ = other.n_threads_;
+    use_gpu_ = other.use_gpu_;
     model_name_ = std::move(other.model_name_);
 
     other.model_ = nullptr;
@@ -85,6 +87,7 @@ LlamaEngine& LlamaEngine::operator=(LlamaEngine&& other) noexcept {
         ctx_mtmd_ = other.ctx_mtmd_;
         target_dim_ = other.target_dim_;
         n_threads_ = other.n_threads_;
+        use_gpu_ = other.use_gpu_;
         model_name_ = std::move(other.model_name_);
 
         other.model_ = nullptr;
@@ -119,8 +122,8 @@ bool LlamaEngine::loadModel(const fs::path& model_path) {
     }
 
     llama_model_params mparams = llama_model_default_params();
-    // Offload all layers to GPU (Vulkan/CUDA) if available
-    mparams.n_gpu_layers = 99;
+    // Offload all layers to GPU (Vulkan/CUDA) if GPU is requested
+    mparams.n_gpu_layers = use_gpu_ ? 99 : 0;
 
     model_ = llama_model_load_from_file(model_path.c_str(), mparams);
     if (!model_) {
@@ -183,7 +186,7 @@ bool LlamaEngine::loadVisionProjector(const fs::path& model_path) {
     }
 
     mtmd_context_params mparams = mtmd_context_params_default();
-    mparams.use_gpu = true;
+    mparams.use_gpu = use_gpu_;
     mparams.n_threads = n_threads_;
     ctx_mtmd_ = mtmd_init_from_file(mmproj_path.string().c_str(), model_, mparams);
     if (!ctx_mtmd_) {

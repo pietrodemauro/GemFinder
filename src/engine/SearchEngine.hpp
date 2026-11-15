@@ -79,6 +79,8 @@ public:
     // Statistics & diagnostics
     [[nodiscard]] EngineStats getStats();
 
+    void setInferenceEngine(std::unique_ptr<InferenceEngine> new_engine);
+
     [[nodiscard]] InferenceEngine& inference() noexcept { return *inference_; }
     [[nodiscard]] StorageManager& storage() noexcept { return *storage_; }
     [[nodiscard]] MediaPreprocessor& preprocessor() noexcept { return preprocessor_; }

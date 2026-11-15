@@ -96,6 +96,20 @@ int main(int argc, char* argv[]) {
                 resp.success = true;
                 break;
             }
+            case gemfinder::IpcAction::UnindexFile: {
+                bool ok = engine->removeFile(req.path);
+                resp.success = ok;
+                if (!ok) resp.error_message = "File not found in index";
+                break;
+            }
+            case gemfinder::IpcAction::ConfigureEngine: {
+                fs::path model_to_use = req.model_path.empty() ? engine->getStats().inference_model : req.model_path;
+                auto new_inf = gemfinder::EngineFactory::createEngine(model_to_use, gemfinder::kEmbeddingDim, 0, req.use_gpu);
+                engine->setInferenceEngine(std::move(new_inf));
+                resp.model_name = engine->inference().modelName();
+                resp.success = true;
+                break;
+            }
             case gemfinder::IpcAction::GetStats: {
                 auto s = engine->getStats();
                 resp.total_files = s.total_files;

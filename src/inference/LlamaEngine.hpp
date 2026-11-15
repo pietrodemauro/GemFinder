@@ -12,7 +12,7 @@ namespace gemfinder {
 
 class LlamaEngine : public InferenceEngine {
 public:
-    explicit LlamaEngine(size_t target_dimension = kEmbeddingDim, int n_threads = 0);
+    explicit LlamaEngine(size_t target_dimension = kEmbeddingDim, int n_threads = 0, bool use_gpu = true);
     ~LlamaEngine() override;
 
     // Non-copyable, movable
@@ -25,6 +25,8 @@ public:
     [[nodiscard]] bool isLoaded() const noexcept override;
     [[nodiscard]] std::string modelName() const override;
     [[nodiscard]] size_t dimension() const noexcept override { return target_dim_; }
+    [[nodiscard]] bool useGpu() const noexcept { return use_gpu_; }
+    void setUseGpu(bool use_gpu) noexcept { use_gpu_ = use_gpu; }
 
     [[nodiscard]] Embedding embedText(std::string_view text) override;
     [[nodiscard]] Embedding embedImage(std::span<const float> rgb_pixels, int width, int height) override;
@@ -39,6 +41,7 @@ private:
     mtmd_context* ctx_mtmd_{nullptr};
     size_t target_dim_{kEmbeddingDim};
     int n_threads_{0};
+    bool use_gpu_{true};
     std::string model_name_;
     mutable std::mutex mutex_;
 

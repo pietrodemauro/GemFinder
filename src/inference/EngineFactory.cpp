@@ -41,7 +41,8 @@ std::optional<fs::path> EngineFactory::defaultModelPath() {
 std::unique_ptr<InferenceEngine> EngineFactory::createEngine(
     const std::optional<fs::path>& model_path,
     size_t target_dimension,
-    int n_threads
+    int n_threads,
+    bool use_gpu
 ) {
     std::optional<fs::path> chosen_path = model_path;
     if (!chosen_path.has_value() || chosen_path->empty()) {
@@ -53,7 +54,7 @@ std::unique_ptr<InferenceEngine> EngineFactory::createEngine(
 
     if (chosen_path.has_value() && !chosen_path->empty()) {
         if (fs::exists(*chosen_path)) {
-            auto llama = std::make_unique<LlamaEngine>(target_dimension, n_threads);
+            auto llama = std::make_unique<LlamaEngine>(target_dimension, n_threads, use_gpu);
             if (llama->loadModel(*chosen_path)) {
                 return llama;
             }

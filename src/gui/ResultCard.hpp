@@ -4,6 +4,7 @@
 #include "gui/SearchResultItem.hpp"
 #include <QFrame>
 #include <QLabel>
+#include <QPushButton>
 #include <QMouseEvent>
 #include <QMenu>
 
@@ -22,6 +23,14 @@ public:
 signals:
     void cardClicked(const SearchResult& result);
     void cardDoubleClicked(const SearchResult& result);
+    void removeRequested(const SearchResult& result);
+    void openFolderRequested(const SearchResult& result);
+
+public slots:
+    void openFile();
+    void openContainingFolder();
+    void copyPath();
+    void copyPreviewText();
 
 protected:
     void mousePressEvent(QMouseEvent* event) override;
@@ -30,10 +39,6 @@ protected:
 
 private:
     void setupUi();
-    void openFile();
-    void openContainingFolder();
-    void copyPath();
-    void copyPreviewText();
 
     SearchResult result_;
     Modality modality_;
@@ -43,6 +48,9 @@ private:
     QLabel* preview_label_{nullptr};
     QLabel* score_badge_{nullptr};
     QLabel* offset_badge_{nullptr};
+    QPushButton* btn_open_folder_{nullptr};
+    QPushButton* btn_open_file_{nullptr};
+    QPushButton* btn_remove_{nullptr};
 };
 
 } // namespace gemfinder

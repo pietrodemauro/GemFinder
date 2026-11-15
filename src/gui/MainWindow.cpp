@@ -11,12 +11,15 @@
 #include <QFileInfo>
 #include <QDir>
 #include <QScrollBar>
+#include <QDesktopServices>
+#include <QProcess>
+#include <algorithm>
 
 namespace gemfinder {
 
 MainWindow::MainWindow(std::optional<fs::path> model_path, int n_threads, QWidget* parent)
     : QMainWindow(parent),
-      search_worker_(new SearchWorker(std::move(model_path), n_threads, this)),
+      search_worker_(new SearchWorker(std::move(model_path), n_threads, true, this)),
       debounce_timer_(new QTimer(this)) {
 
     setupUi();
@@ -50,6 +53,12 @@ MainWindow::MainWindow(std::optional<fs::path> model_path, int n_threads, QWidge
     connect(btn_tab_text_, &QPushButton::clicked, this, [this]() { onFilterChanged(DisplayFilter::TextOnly); });
     connect(btn_tab_image_, &QPushButton::clicked, this, [this]() { onFilterChanged(DisplayFilter::ImageOnly); });
     connect(btn_tab_audio_, &QPushButton::clicked, this, [this]() { onFilterChanged(DisplayFilter::AudioOnly); });
+
+    // Hardware & Model Control Signals
+    connect(combo_device_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onDeviceChanged);
+    connect(btn_change_model_, &QPushButton::clicked, this, &MainWindow::onChangeModel);
+
+    label_model_name_->setText(QString::fromStdString(search_worker_->currentModelName()));
 
     // Initial check
     onDaemonStatusChanged(search_worker_->isDaemonConnected());
@@ -125,6 +134,38 @@ void MainWindow::setupUi() {
 
     main_layout->addLayout(filter_bar);
 
+    // --- HARDWARE & MODEL SETTINGS BAR ---
+    auto* settings_bar = new QHBoxLayout();
+    settings_bar->setSpacing(8);
+
+    auto* lbl_device = new QLabel("⚡ Device:", this);
+    lbl_device->setStyleSheet("color: #a5adcb; font-size: 12px; font-weight: bold;");
+    settings_bar->addWidget(lbl_device);
+
+    combo_device_ = new QComboBox(this);
+    combo_device_->addItem("🚀 GPU (Vulkan)", true);
+    combo_device_->addItem("💻 CPU (Multi-core)", false);
+    combo_device_->setToolTip("Select compute device for local embedding inference");
+    settings_bar->addWidget(combo_device_);
+
+    settings_bar->addSpacing(12);
+
+    auto* lbl_model = new QLabel("🧠 Model:", this);
+    lbl_model->setStyleSheet("color: #a5adcb; font-size: 12px; font-weight: bold;");
+    settings_bar->addWidget(lbl_model);
+
+    label_model_name_ = new QLabel("embeddinggemma-2.gguf", this);
+    label_model_name_->setStyleSheet("background-color: #24273a; color: #89b4fa; border: 1px solid #363a4f; border-radius: 6px; padding: 4px 8px; font-size: 12px; font-weight: bold;");
+    label_model_name_->setToolTip("Current GGUF embedding model");
+    settings_bar->addWidget(label_model_name_);
+
+    btn_change_model_ = new QPushButton("Browse Model (.gguf)...", this);
+    btn_change_model_->setToolTip("Select a local GGUF embedding model file");
+    settings_bar->addWidget(btn_change_model_);
+
+    settings_bar->addStretch();
+    main_layout->addLayout(settings_bar);
+
     // --- SCROLLABLE RESULTS CONTAINER ---
     scroll_area_ = new QScrollArea(this);
     scroll_area_->setWidgetResizable(true);
@@ -181,6 +222,32 @@ void MainWindow::setupStyles() {
             color: #181926;
             font-weight: bold;
             border: 1px solid #89b4fa;
+        }
+        QComboBox {
+            background-color: #24273a;
+            color: #cad3f5;
+            border: 1px solid #363a4f;
+            border-radius: 8px;
+            padding: 6px 12px;
+            font-size: 12px;
+            font-weight: 500;
+            min-width: 140px;
+        }
+        QComboBox:hover {
+            border: 1px solid #89b4fa;
+        }
+        QComboBox::drop-down {
+            border: none;
+            padding-right: 8px;
+        }
+        QComboBox QAbstractItemView {
+            background-color: #1e2030;
+            color: #cad3f5;
+            selection-background-color: #363a4f;
+            selection-color: #89b4fa;
+            border: 1px solid #363a4f;
+            border-radius: 6px;
+            padding: 4px;
         }
         QScrollArea {
             background: transparent;
@@ -369,6 +436,23 @@ void MainWindow::onSearchCompleted(const IpcResponse& response) {
         return;
     }
 
+    if (response.action == IpcAction::ConfigureEngine) {
+        if (!response.model_name.empty()) {
+            label_model_name_->setText(QString::fromStdString(response.model_name));
+        }
+        stats_bar_->setText(QString("⚡ Engine configured: %1 (Device: %2, Latency: %3 ms)")
+            .arg(label_model_name_->text())
+            .arg(combo_device_->currentText())
+            .arg(response.latency_ms, 0, 'f', 1));
+        return;
+    }
+
+    if (response.action == IpcAction::UnindexFile) {
+        stats_bar_->setText(QString("🗑️ File removed from search index in %1 ms")
+            .arg(response.latency_ms, 0, 'f', 1));
+        return;
+    }
+
     all_results_ = response.results;
     last_latency_ms_ = response.latency_ms;
 
@@ -460,6 +544,16 @@ void MainWindow::renderResults() {
 
         for (const auto& item : items) {
             auto* card = new ResultCard(item, results_container_);
+            connect(card, &ResultCard::removeRequested, this, &MainWindow::onRemoveFileRequested);
+            connect(card, &ResultCard::openFolderRequested, this, [](const SearchResult& res) {
+                if (!res.filepath.empty()) {
+                    QFileInfo fi(QString::fromStdString(res.filepath));
+                    QString dir = fi.absolutePath();
+                    if (!QDesktopServices::openUrl(QUrl::fromLocalFile(dir))) {
+                        QProcess::startDetached("xdg-open", {dir});
+                    }
+                }
+            });
             results_layout_->addWidget(card);
         }
     };
@@ -531,6 +625,68 @@ void MainWindow::dropEvent(QDropEvent* event) {
         search_input_->setText(fi.baseName());
         triggerSearch();
     }
+}
+
+void MainWindow::onDeviceChanged(int index) {
+    bool use_gpu = combo_device_->itemData(index).toBool();
+    search_worker_->setComputeDevice(use_gpu);
+    stats_bar_->setText(QString("Compute device changed to %1.").arg(use_gpu ? "GPU (Vulkan)" : "CPU"));
+}
+
+void MainWindow::onChangeModel() {
+    QString initial_dir = "models";
+    if (!fs::exists("models")) {
+        initial_dir = QDir::homePath();
+    }
+    QString file = QFileDialog::getOpenFileName(
+        this,
+        "Select GGUF Embedding Model",
+        initial_dir,
+        "GGUF Models (*.gguf);;All Files (*)"
+    );
+    if (!file.isEmpty()) {
+        fs::path p = file.toStdString();
+        label_model_name_->setText(QFileInfo(file).fileName());
+        search_worker_->setModelPath(p);
+        stats_bar_->setText(QString("Embedding model updating to: %1...").arg(QFileInfo(file).fileName()));
+    }
+}
+
+void MainWindow::onRemoveFileRequested(const SearchResult& item) {
+    auto reply = QMessageBox::question(
+        this,
+        "Remove File from Index",
+        QString("Are you sure you want to remove \"%1\" from the search index?\n\nPath:\n%2")
+            .arg(QString::fromStdString(item.filename))
+            .arg(QString::fromStdString(item.filepath)),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::No
+    );
+
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
+
+    std::string path_to_remove = item.filepath;
+    IpcRequest req;
+    req.action = IpcAction::UnindexFile;
+    req.path = path_to_remove;
+    search_worker_->requestAction(req);
+
+    // Remove matching items from in-memory lists
+    auto matches = [&](const SearchResult& r) { return r.filepath == path_to_remove; };
+    all_results_.erase(std::remove_if(all_results_.begin(), all_results_.end(), matches), all_results_.end());
+    text_results_.erase(std::remove_if(text_results_.begin(), text_results_.end(), matches), text_results_.end());
+    image_results_.erase(std::remove_if(image_results_.begin(), image_results_.end(), matches), image_results_.end());
+    audio_results_.erase(std::remove_if(audio_results_.begin(), audio_results_.end(), matches), audio_results_.end());
+
+    // Update tab badges
+    btn_tab_text_->setText(QString("📄 Text (%1)").arg(text_results_.size()));
+    btn_tab_image_->setText(QString("🖼️ Images (%1)").arg(image_results_.size()));
+    btn_tab_audio_->setText(QString("🎵 Audio (%1)").arg(audio_results_.size()));
+
+    renderResults();
+    stats_bar_->setText(QString("Removed \"%1\" from search index.").arg(QString::fromStdString(item.filename)));
 }
 
 } // namespace gemfinder

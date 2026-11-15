@@ -47,7 +47,11 @@ std::string serializeRequest(const IpcRequest& req) {
             break;
         case IpcAction::IndexDirectory:
         case IpcAction::UnindexDirectory:
+        case IpcAction::UnindexFile:
             out += "\t" + sanitizeString(req.path);
+            break;
+        case IpcAction::ConfigureEngine:
+            out += "\t" + std::string(req.use_gpu ? "gpu" : "cpu") + "\t" + sanitizeString(req.model_path);
             break;
         default:
             break;
@@ -73,8 +77,13 @@ bool deserializeRequest(std::string_view raw, IpcRequest& out_req) {
     } else if ((out_req.action == IpcAction::SearchImage || out_req.action == IpcAction::SearchAudio) && parts.size() >= 3) {
         try { out_req.limit = std::stoul(parts[1]); } catch (...) { out_req.limit = 10; }
         out_req.path = parts[2];
-    } else if ((out_req.action == IpcAction::IndexDirectory || out_req.action == IpcAction::UnindexDirectory) && parts.size() >= 2) {
+    } else if ((out_req.action == IpcAction::IndexDirectory || out_req.action == IpcAction::UnindexDirectory || out_req.action == IpcAction::UnindexFile) && parts.size() >= 2) {
         out_req.path = parts[1];
+    } else if (out_req.action == IpcAction::ConfigureEngine && parts.size() >= 2) {
+        out_req.use_gpu = (parts[1] == "gpu");
+        if (parts.size() >= 3) {
+            out_req.model_path = parts[2];
+        }
     }
 
     return true;

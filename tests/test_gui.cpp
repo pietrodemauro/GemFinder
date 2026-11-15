@@ -139,6 +139,13 @@ void testWidgetsInstantiation(int argc, char** argv) {
     assert(card.result().filename == "example.cpp");
     assert(card.modality() == Modality::Text);
 
+    bool remove_emitted = false;
+    QObject::connect(&card, &ResultCard::removeRequested, [&remove_emitted](const SearchResult& res) {
+        remove_emitted = (res.filename == "example.cpp");
+    });
+    emit card.removeRequested(item);
+    assert(remove_emitted);
+
     // Test MainWindow instantiation
     MainWindow window;
     window.show();

@@ -14,6 +14,7 @@
 #include <QHBoxLayout>
 #include <QTimer>
 #include <QButtonGroup>
+#include <QComboBox>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <vector>
@@ -50,6 +51,9 @@ private slots:
     void onIndexDirectory();
     void onUnindexDirectory();
     void onFilterChanged(DisplayFilter filter);
+    void onDeviceChanged(int index);
+    void onChangeModel();
+    void onRemoveFileRequested(const SearchResult& result);
 
 private:
     void setupUi();
@@ -66,6 +70,11 @@ private:
     QPushButton* btn_unindex_dir_{nullptr};
     QLabel* daemon_status_badge_{nullptr};
     QLabel* stats_bar_{nullptr};
+
+    // Hardware & Model Controls
+    QComboBox* combo_device_{nullptr};
+    QLabel* label_model_name_{nullptr};
+    QPushButton* btn_change_model_{nullptr};
 
     // Filter Buttons
     QPushButton* btn_tab_all_{nullptr};

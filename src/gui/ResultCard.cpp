@@ -10,6 +10,7 @@
 #include <QPixmap>
 #include <QPainter>
 #include <QPainterPath>
+#include <QProcess>
 #include <iomanip>
 #include <sstream>
 
@@ -124,6 +125,8 @@ void ResultCard::setupUi() {
 
     title_label_ = new QLabel(QString::fromStdString(result_.filename), this);
     title_label_->setStyleSheet("color: #cad3f5; font-weight: bold; font-size: 14px;");
+    title_label_->setCursor(Qt::PointingHandCursor);
+    title_label_->setToolTip("Click to open containing folder");
     header_layout->addWidget(title_label_);
 
     offset_badge_ = new QLabel(formatOffset(result_), this);
@@ -140,7 +143,8 @@ void ResultCard::setupUi() {
     // Path row
     path_label_ = new QLabel(QString::fromStdString(result_.filepath), this);
     path_label_->setStyleSheet("color: #8087a2; font-size: 11px;");
-    path_label_->setToolTip(QString::fromStdString(result_.filepath));
+    path_label_->setCursor(Qt::PointingHandCursor);
+    path_label_->setToolTip("Click to open containing folder: " + QString::fromStdString(result_.filepath));
     details_layout->addWidget(path_label_);
 
     // Snippet preview row
@@ -163,11 +167,52 @@ void ResultCard::setupUi() {
     details_layout->addWidget(preview_label_);
 
     main_layout->addLayout(details_layout, 1);
+
+    // Action buttons on the right
+    auto* actions_layout = new QVBoxLayout();
+    actions_layout->setSpacing(4);
+    actions_layout->setAlignment(Qt::AlignCenter);
+
+    btn_open_folder_ = new QPushButton("📁 Folder", this);
+    btn_open_folder_->setToolTip("Open containing folder in file manager");
+    btn_open_folder_->setCursor(Qt::PointingHandCursor);
+    btn_open_folder_->setStyleSheet(
+        "QPushButton { background-color: #363a4f; color: #89b4fa; border: 1px solid #494d64; border-radius: 6px; padding: 4px 10px; font-size: 11px; font-weight: bold; } "
+        "QPushButton:hover { background-color: #89b4fa; color: #1e2030; }"
+    );
+    connect(btn_open_folder_, &QPushButton::clicked, this, &ResultCard::openContainingFolder);
+    actions_layout->addWidget(btn_open_folder_);
+
+    btn_open_file_ = new QPushButton("📄 Open", this);
+    btn_open_file_->setToolTip("Open file with default system application");
+    btn_open_file_->setCursor(Qt::PointingHandCursor);
+    btn_open_file_->setStyleSheet(
+        "QPushButton { background-color: #363a4f; color: #a6da95; border: 1px solid #494d64; border-radius: 6px; padding: 4px 10px; font-size: 11px; } "
+        "QPushButton:hover { background-color: #a6da95; color: #1e2030; }"
+    );
+    connect(btn_open_file_, &QPushButton::clicked, this, &ResultCard::openFile);
+    actions_layout->addWidget(btn_open_file_);
+
+    btn_remove_ = new QPushButton("🗑️ Remove", this);
+    btn_remove_->setToolTip("Remove this file from the search index");
+    btn_remove_->setCursor(Qt::PointingHandCursor);
+    btn_remove_->setStyleSheet(
+        "QPushButton { background-color: #363a4f; color: #ed8796; border: 1px solid #494d64; border-radius: 6px; padding: 4px 10px; font-size: 11px; } "
+        "QPushButton:hover { background-color: #ed8796; color: #1e2030; }"
+    );
+    connect(btn_remove_, &QPushButton::clicked, this, [this]() {
+        emit removeRequested(result_);
+    });
+    actions_layout->addWidget(btn_remove_);
+
+    main_layout->addLayout(actions_layout);
 }
 
 void ResultCard::mousePressEvent(QMouseEvent* event) {
     if (event->button() == Qt::LeftButton) {
         emit cardClicked(result_);
+        emit openFolderRequested(result_);
+        openContainingFolder();
     }
     QFrame::mousePressEvent(event);
 }
@@ -200,17 +245,20 @@ void ResultCard::contextMenuEvent(QContextMenuEvent* event) {
         }
     )");
 
-    auto* act_open = menu.addAction("📂 Open File");
     auto* act_folder = menu.addAction("📁 Show in Folder");
+    auto* act_open = menu.addAction("📂 Open File");
+    auto* act_remove = menu.addAction("🗑️ Remove from Index");
     menu.addSeparator();
     auto* act_copy_path = menu.addAction("📋 Copy Absolute Path");
     auto* act_copy_preview = menu.addAction("📝 Copy Preview Text");
 
     QAction* selected = menu.exec(event->globalPos());
-    if (selected == act_open) {
-        openFile();
-    } else if (selected == act_folder) {
+    if (selected == act_folder) {
         openContainingFolder();
+    } else if (selected == act_open) {
+        openFile();
+    } else if (selected == act_remove) {
+        emit removeRequested(result_);
     } else if (selected == act_copy_path) {
         copyPath();
     } else if (selected == act_copy_preview) {
@@ -227,7 +275,10 @@ void ResultCard::openFile() {
 void ResultCard::openContainingFolder() {
     if (!result_.filepath.empty()) {
         QFileInfo fi(QString::fromStdString(result_.filepath));
-        QDesktopServices::openUrl(QUrl::fromLocalFile(fi.absolutePath()));
+        QString dir_path = fi.absolutePath();
+        if (!QDesktopServices::openUrl(QUrl::fromLocalFile(dir_path))) {
+            QProcess::startDetached("xdg-open", {dir_path});
+        }
     }
 }
 

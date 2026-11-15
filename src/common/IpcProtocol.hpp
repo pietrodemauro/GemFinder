@@ -18,6 +18,8 @@ enum class IpcAction {
     SearchAudio,
     IndexDirectory,
     UnindexDirectory,
+    UnindexFile,
+    ConfigureEngine,
     GetStats,
     Unknown
 };
@@ -30,6 +32,8 @@ enum class IpcAction {
         case IpcAction::SearchAudio:      return "search_audio";
         case IpcAction::IndexDirectory:   return "index_dir";
         case IpcAction::UnindexDirectory: return "unindex_dir";
+        case IpcAction::UnindexFile:       return "unindex_file";
+        case IpcAction::ConfigureEngine:  return "configure_engine";
         case IpcAction::GetStats:         return "get_stats";
         case IpcAction::Unknown:          return "unknown";
     }
@@ -37,13 +41,15 @@ enum class IpcAction {
 }
 
 [[nodiscard]] inline IpcAction stringToAction(std::string_view sv) {
-    if (sv == "ping")         return IpcAction::Ping;
-    if (sv == "search_text")  return IpcAction::SearchText;
-    if (sv == "search_image") return IpcAction::SearchImage;
-    if (sv == "search_audio") return IpcAction::SearchAudio;
-    if (sv == "index_dir")    return IpcAction::IndexDirectory;
-    if (sv == "unindex_dir")  return IpcAction::UnindexDirectory;
-    if (sv == "get_stats")    return IpcAction::GetStats;
+    if (sv == "ping")             return IpcAction::Ping;
+    if (sv == "search_text")      return IpcAction::SearchText;
+    if (sv == "search_image")     return IpcAction::SearchImage;
+    if (sv == "search_audio")     return IpcAction::SearchAudio;
+    if (sv == "index_dir")        return IpcAction::IndexDirectory;
+    if (sv == "unindex_dir")      return IpcAction::UnindexDirectory;
+    if (sv == "unindex_file")     return IpcAction::UnindexFile;
+    if (sv == "configure_engine") return IpcAction::ConfigureEngine;
+    if (sv == "get_stats")        return IpcAction::GetStats;
     return IpcAction::Unknown;
 }
 
@@ -52,6 +58,8 @@ struct IpcRequest {
     std::string query;
     std::string path;
     size_t limit{10};
+    bool use_gpu{true};
+    std::string model_path;
 };
 
 struct IpcResponse {
