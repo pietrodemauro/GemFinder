@@ -1,7 +1,7 @@
 # GemFinder
 
 [![C++20](https://img.shields.io/badge/Language-C%2B%2B20-blue.svg)](https://en.wikipedia.org/wiki/C%2B%2B20)
-[![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)](LICENSE)
+[![License: GPL v3](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 [![Platform](https://img.shields.io/badge/Platform-Linux-orange.svg)](https://kernel.org)
 [![Build](https://img.shields.io/badge/Build-CMake-brightgreen.svg)](https://cmake.org)
 
@@ -147,6 +147,7 @@ For full documentation, see [User Guide](docs/USER_GUIDE.md).
 
 ---
 
-## License
+## License & Author
 
-This project is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
+- **Author**: Pietro
+- **License**: GNU General Public License v3.0 (GPL-3.0). See [LICENSE](LICENSE) for the full text.
