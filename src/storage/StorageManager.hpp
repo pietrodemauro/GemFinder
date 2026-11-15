@@ -33,7 +33,8 @@ public:
         const std::optional<std::string>& text_query,
         const std::optional<std::span<const float>>& vector_query,
         size_t limit = 20,
-        double rrf_k = 60.0
+        double rrf_k = 60.0,
+        float min_similarity = 0.0f
     );
 
     // Diagnostics & Accessors

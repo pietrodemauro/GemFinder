@@ -141,7 +141,8 @@ std::vector<SearchResult> StorageManager::hybridSearch(
     const std::optional<std::string>& text_query,
     const std::optional<std::span<const float>>& vector_query,
     size_t limit,
-    double rrf_k
+    double rrf_k,
+    float min_similarity
 ) {
     std::vector<SearchResult> final_results;
     if (!text_query.has_value() && !vector_query.has_value()) {
@@ -160,10 +161,14 @@ std::vector<SearchResult> StorageManager::hybridSearch(
 
     // 1. Vector Search
     if (vector_query.has_value()) {
-        auto vec_matches = vectors_.search(*vector_query, limit * 2);
+        auto vec_matches = vectors_.search(*vector_query, limit * 3);
+        int valid_rank = 1;
         for (size_t i = 0; i < vec_matches.size(); ++i) {
             const auto& vm = vec_matches[i];
-            int rank = static_cast<int>(i + 1);
+            if (min_similarity > 0.0f && vm.similarity < min_similarity) {
+                continue;
+            }
+            int rank = valid_rank++;
             auto& cand = candidate_map[vm.chunk_id];
             cand.chunk_id = vm.chunk_id;
             cand.rank_vector = rank;
@@ -174,7 +179,7 @@ std::vector<SearchResult> StorageManager::hybridSearch(
 
     // 2. Lexical Full-Text Search (FTS5)
     if (text_query.has_value() && !text_query->empty()) {
-        auto fts_matches = db_.searchFts(*text_query, limit * 2);
+        auto fts_matches = db_.searchFts(*text_query, limit * 3);
         for (size_t i = 0; i < fts_matches.size(); ++i) {
             const auto& fm = fts_matches[i];
             int rank = static_cast<int>(i + 1);
@@ -196,6 +201,14 @@ std::vector<SearchResult> StorageManager::hybridSearch(
         // If query was vector-only, fall back to pure vector similarity as score
         if (vector_query.has_value() && (!text_query.has_value() || text_query->empty())) {
             cand.rrf_score = static_cast<double>(cand.vector_similarity);
+            if (min_similarity > 0.0f && cand.vector_similarity < min_similarity) {
+                continue;
+            }
+        } else if (min_similarity > 0.0f) {
+            // If candidate has vector match below threshold and no lexical match, skip it
+            if (cand.rank_vector > 0 && cand.vector_similarity < min_similarity && cand.rank_lexical == 0) {
+                continue;
+            }
         }
         sorted_candidates.push_back(cand);
     }
@@ -225,6 +238,7 @@ std::vector<SearchResult> StorageManager::hybridSearch(
         sr.chunk_type = chunk_opt->chunk_type;
         sr.start_offset = chunk_opt->start_offset;
         sr.score = cand.rrf_score;
+        sr.similarity = cand.vector_similarity;
         sr.rank_vector = cand.rank_vector;
         sr.rank_lexical = cand.rank_lexical;
 

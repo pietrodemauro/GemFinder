@@ -58,6 +58,7 @@ struct IpcRequest {
     std::string query;
     std::string path;
     size_t limit{10};
+    float threshold{0.0f};
     bool use_gpu{true};
     std::string model_path;
 };

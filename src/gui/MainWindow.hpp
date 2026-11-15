@@ -15,6 +15,7 @@
 #include <QTimer>
 #include <QButtonGroup>
 #include <QComboBox>
+#include <QSlider>
 #include <QDragEnterEvent>
 #include <QDropEvent>
 #include <vector>
@@ -54,6 +55,7 @@ private slots:
     void onDeviceChanged(int index);
     void onChangeModel();
     void onRemoveFileRequested(const SearchResult& result);
+    void onThresholdChanged(int value);
 
 private:
     void setupUi();
@@ -61,6 +63,7 @@ private:
     void triggerSearch();
     void renderResults();
     void clearResultsLayout();
+    void applyThresholdFilter();
 
     // UI elements
     QLineEdit* search_input_{nullptr};
@@ -75,6 +78,9 @@ private:
     QComboBox* combo_device_{nullptr};
     QLabel* label_model_name_{nullptr};
     QPushButton* btn_change_model_{nullptr};
+    QSlider* slider_threshold_{nullptr};
+    QLabel* label_threshold_val_{nullptr};
+    float current_threshold_{0.0f};
 
     // Filter Buttons
     QPushButton* btn_tab_all_{nullptr};
@@ -92,7 +98,8 @@ private:
     QTimer* debounce_timer_{nullptr};
     DisplayFilter current_filter_{DisplayFilter::AllGrouped};
 
-    // Stored results partitioned by modality
+    // Stored results
+    std::vector<SearchResult> raw_results_;
     std::vector<SearchResult> all_results_;
     std::vector<SearchResult> text_results_;
     std::vector<SearchResult> image_results_;

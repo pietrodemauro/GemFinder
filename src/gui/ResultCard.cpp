@@ -133,7 +133,17 @@ void ResultCard::setupUi() {
     offset_badge_->setStyleSheet("background-color: #363a4f; color: #a6da95; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;");
     header_layout->addWidget(offset_badge_);
 
-    score_badge_ = new QLabel(QString("RRF: %1").arg(formatScore(result_.score)), this);
+    QString score_str;
+    if (modality_ == Modality::Image || modality_ == Modality::Audio) {
+        score_str = QString("Sim: %1%").arg(static_cast<int>(std::round(result_.score * 100.0)));
+    } else {
+        if (result_.similarity > 0.01f) {
+            score_str = QString("Sim: %1% | RRF: %2").arg(static_cast<int>(std::round(result_.similarity * 100.0f))).arg(formatScore(result_.score));
+        } else {
+            score_str = QString("RRF: %1").arg(formatScore(result_.score));
+        }
+    }
+    score_badge_ = new QLabel(score_str, this);
     score_badge_->setStyleSheet("background-color: #494d64; color: #f5a97f; padding: 2px 6px; border-radius: 4px; font-size: 11px;");
     header_layout->addWidget(score_badge_);
 

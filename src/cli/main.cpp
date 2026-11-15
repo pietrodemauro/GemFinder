@@ -21,9 +21,9 @@ void printUsage(std::string_view progName) {
               << "Usage:\n"
               << "  " << progName << " index <directory> [--model <model.gguf>] [--threads <N>] [--db <path>] [--force]\n"
               << "  " << progName << " unindex <directory> [--db <path>] Remove all files in directory from index\n"
-              << "  " << progName << " search <query_text> [--limit <N>] [--threads <N>] [--model <model.gguf>] [--db <path>]\n"
-              << "  " << progName << " search --image <file.jpg> [--limit <N>] [--threads <N>] [--model <model.gguf>] [--db <path>]\n"
-              << "  " << progName << " search --audio <file.wav> [--limit <N>] [--threads <N>] [--model <model.gguf>] [--db <path>]\n"
+              << "  " << progName << " search <query_text> [--limit <N>] [--threshold <0.0-1.0>] [--threads <N>] [--model <model.gguf>] [--db <path>]\n"
+              << "  " << progName << " search --image <file.jpg> [--limit <N>] [--threshold <0.0-1.0>] [--threads <N>] [--model <model.gguf>] [--db <path>]\n"
+              << "  " << progName << " search --audio <file.wav> [--limit <N>] [--threshold <0.0-1.0>] [--threads <N>] [--model <model.gguf>] [--db <path>]\n"
               << "  " << progName << " stats [--db <path>]\n"
               << "  " << progName << " list [--db <path>]       List all registered files in the index\n"
               << "  " << progName << " inspect <file>           Preprocess a file and inspect extracted chunks\n"
@@ -31,7 +31,8 @@ void printUsage(std::string_view progName) {
               << "  " << progName << " hash <file>              Compute xxHash64 for a file\n"
               << "  " << progName << " --info                   Show system info and loaded libraries\n"
               << "  " << progName << " --version                Show software version\n\n"
-              << "CPU & Resource Options:\n"
+              << "Search & Resource Options:\n"
+              << "  --threshold, -s <val> Minimum similarity threshold (0.0 to 1.0, e.g. 0.35)\n"
               << "  --threads, -t <N>    Manually set CPU worker threads (default: 50% of CPU cores)\n";
 }
 
@@ -233,6 +234,13 @@ int main(int argc, char* argv[]) {
             try { limit = std::stoul(*lim_str); } catch (...) {}
         }
 
+        float threshold = 0.0f;
+        if (auto s_opt = getOption("--threshold")) {
+            try { threshold = std::stof(*s_opt); } catch (...) {}
+        } else if (auto s_opt2 = getOption("-s")) {
+            try { threshold = std::stof(*s_opt2); } catch (...) {}
+        }
+
         fs::path sock_path = getOption("--socket").value_or(std::string(gemfinder::kDefaultSocketPath));
         gemfinder::IpcClient client(sock_path);
 
@@ -242,6 +250,7 @@ int main(int argc, char* argv[]) {
         if (client.isDaemonRunning()) {
             gemfinder::IpcRequest req;
             req.limit = limit;
+            req.threshold = threshold;
 
             if (auto img_path = getOption("--image")) {
                 req.action = gemfinder::IpcAction::SearchImage;
@@ -277,11 +286,11 @@ int main(int argc, char* argv[]) {
 
             auto start_t = std::chrono::high_resolution_clock::now();
             if (auto img_path = getOption("--image")) {
-                results = engine.searchByImage(*img_path, limit);
+                results = engine.searchByImage(*img_path, limit, threshold);
             } else if (auto aud_path = getOption("--audio")) {
-                results = engine.searchByAudio(*aud_path, limit);
+                results = engine.searchByAudio(*aud_path, limit, threshold);
             } else if (argc >= 3) {
-                results = engine.search(argv[2], limit);
+                results = engine.search(argv[2], limit, threshold);
             } else {
                 gemfinder::Logger::error("Specify a text query or --image <file> or --audio <file>");
                 return 1;
@@ -295,8 +304,16 @@ int main(int argc, char* argv[]) {
 
         for (size_t i = 0; i < results.size(); ++i) {
             const auto& r = results[i];
-            std::cout << " " << (i + 1) << ". " << r.filename
-                      << "  [Score RRF: " << std::setprecision(4) << r.score << "]\n";
+            std::cout << " " << (i + 1) << ". " << r.filename;
+            if (r.chunk_type == "image_frame" || r.chunk_type == "audio_segment") {
+                std::cout << "  [Similarity: " << std::fixed << std::setprecision(1) << (r.score * 100.0) << "%]\n";
+            } else {
+                std::cout << "  [Score RRF: " << std::setprecision(4) << r.score;
+                if (r.similarity > 0.01f) {
+                    std::cout << ", Similarity: " << std::fixed << std::setprecision(1) << (r.similarity * 100.0f) << "%";
+                }
+                std::cout << "]\n";
+            }
             std::cout << "    Path:     " << r.filepath << "\n";
             std::cout << "    Offset:   ";
             if (r.chunk_type == "text_paragraph") {

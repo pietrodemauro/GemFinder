@@ -109,6 +109,7 @@ struct SearchResult {
     std::string chunk_type;
     int64_t start_offset{0};
     double score{0.0};
+    float similarity{0.0f};
     int rank_vector{0};
     int rank_lexical{0};
 };

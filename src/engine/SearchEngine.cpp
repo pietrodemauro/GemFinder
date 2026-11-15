@@ -135,6 +135,7 @@ IndexStats SearchEngine::indexDirectory(
 std::vector<SearchResult> SearchEngine::search(
     std::string_view query_text,
     size_t limit,
+    float min_similarity,
     double rrf_k
 ) {
     std::string formatted_query = TextPreprocessor::formatQueryPrompt(query_text);
@@ -144,13 +145,15 @@ std::vector<SearchResult> SearchEngine::search(
         std::string(query_text),
         std::span<const float>(query_vec),
         limit,
-        rrf_k
+        rrf_k,
+        min_similarity
     );
 }
 
 std::vector<SearchResult> SearchEngine::searchByImage(
     const fs::path& image_path,
-    size_t limit
+    size_t limit,
+    float min_similarity
 ) {
     auto processed_opt = preprocessor_.image().processFile(image_path);
     if (!processed_opt) {
@@ -167,13 +170,16 @@ std::vector<SearchResult> SearchEngine::searchByImage(
     return storage_->hybridSearch(
         std::nullopt,
         std::span<const float>(query_vec),
-        limit
+        limit,
+        60.0,
+        min_similarity
     );
 }
 
 std::vector<SearchResult> SearchEngine::searchByAudio(
     const fs::path& audio_path,
-    size_t limit
+    size_t limit,
+    float min_similarity
 ) {
     auto processed_opt = preprocessor_.audio().processFile(audio_path);
     if (!processed_opt || processed_opt->chunks.empty()) {
@@ -190,7 +196,9 @@ std::vector<SearchResult> SearchEngine::searchByAudio(
     return storage_->hybridSearch(
         std::nullopt,
         std::span<const float>(query_vec),
-        limit
+        limit,
+        60.0,
+        min_similarity
     );
 }
 

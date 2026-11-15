@@ -107,13 +107,13 @@ IpcResponse SearchWorker::runLocalSearch(const IpcRequest& req) {
     auto start_time = std::chrono::steady_clock::now();
     try {
         if (req.action == IpcAction::SearchText) {
-            resp.results = local_engine_->search(req.query, req.limit);
+            resp.results = local_engine_->search(req.query, req.limit, req.threshold);
             resp.success = true;
         } else if (req.action == IpcAction::SearchImage) {
-            resp.results = local_engine_->searchByImage(req.path, req.limit);
+            resp.results = local_engine_->searchByImage(req.path, req.limit, req.threshold);
             resp.success = true;
         } else if (req.action == IpcAction::SearchAudio) {
-            resp.results = local_engine_->searchByAudio(req.path, req.limit);
+            resp.results = local_engine_->searchByAudio(req.path, req.limit, req.threshold);
             resp.success = true;
         } else if (req.action == IpcAction::IndexDirectory) {
             auto stats = local_engine_->indexDirectory(req.path);

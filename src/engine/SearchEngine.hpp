@@ -63,17 +63,20 @@ public:
     [[nodiscard]] std::vector<SearchResult> search(
         std::string_view query_text,
         size_t limit = 20,
+        float min_similarity = 0.0f,
         double rrf_k = 60.0
     );
 
     [[nodiscard]] std::vector<SearchResult> searchByImage(
         const fs::path& image_path,
-        size_t limit = 20
+        size_t limit = 20,
+        float min_similarity = 0.0f
     );
 
     [[nodiscard]] std::vector<SearchResult> searchByAudio(
         const fs::path& audio_path,
-        size_t limit = 20
+        size_t limit = 20,
+        float min_similarity = 0.0f
     );
 
     // Statistics & diagnostics

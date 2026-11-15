@@ -69,17 +69,17 @@ int main(int argc, char* argv[]) {
                 break;
             }
             case gemfinder::IpcAction::SearchText: {
-                resp.results = engine->search(req.query, req.limit);
+                resp.results = engine->search(req.query, req.limit, req.threshold);
                 resp.success = true;
                 break;
             }
             case gemfinder::IpcAction::SearchImage: {
-                resp.results = engine->searchByImage(req.path, req.limit);
+                resp.results = engine->searchByImage(req.path, req.limit, req.threshold);
                 resp.success = true;
                 break;
             }
             case gemfinder::IpcAction::SearchAudio: {
-                resp.results = engine->searchByAudio(req.path, req.limit);
+                resp.results = engine->searchByAudio(req.path, req.limit, req.threshold);
                 resp.success = true;
                 break;
             }

@@ -57,6 +57,7 @@ MainWindow::MainWindow(std::optional<fs::path> model_path, int n_threads, QWidge
     // Hardware & Model Control Signals
     connect(combo_device_, QOverload<int>::of(&QComboBox::currentIndexChanged), this, &MainWindow::onDeviceChanged);
     connect(btn_change_model_, &QPushButton::clicked, this, &MainWindow::onChangeModel);
+    connect(slider_threshold_, &QSlider::valueChanged, this, &MainWindow::onThresholdChanged);
 
     label_model_name_->setText(QString::fromStdString(search_worker_->currentModelName()));
 
@@ -163,6 +164,25 @@ void MainWindow::setupUi() {
     btn_change_model_->setToolTip("Select a local GGUF embedding model file");
     settings_bar->addWidget(btn_change_model_);
 
+    settings_bar->addSpacing(16);
+
+    auto* lbl_threshold = new QLabel("🎯 Min Similarity:", this);
+    lbl_threshold->setStyleSheet("color: #a5adcb; font-size: 12px; font-weight: bold;");
+    settings_bar->addWidget(lbl_threshold);
+
+    slider_threshold_ = new QSlider(Qt::Horizontal, this);
+    slider_threshold_->setRange(0, 95);
+    slider_threshold_->setValue(0);
+    slider_threshold_->setFixedWidth(120);
+    slider_threshold_->setToolTip("Minimum similarity threshold to filter results (0% to 95%)");
+    settings_bar->addWidget(slider_threshold_);
+
+    label_threshold_val_ = new QLabel("0%", this);
+    label_threshold_val_->setStyleSheet("background-color: #24273a; color: #a6da95; border: 1px solid #363a4f; border-radius: 6px; padding: 4px 8px; font-size: 12px; font-weight: bold;");
+    label_threshold_val_->setFixedWidth(45);
+    label_threshold_val_->setAlignment(Qt::AlignCenter);
+    settings_bar->addWidget(label_threshold_val_);
+
     settings_bar->addStretch();
     main_layout->addLayout(settings_bar);
 
@@ -249,6 +269,27 @@ void MainWindow::setupStyles() {
             border-radius: 6px;
             padding: 4px;
         }
+        QSlider::groove:horizontal {
+            border: 1px solid #363a4f;
+            height: 6px;
+            background: #24273a;
+            border-radius: 3px;
+        }
+        QSlider::sub-page:horizontal {
+            background: #89b4fa;
+            border-radius: 3px;
+        }
+        QSlider::handle:horizontal {
+            background: #cad3f5;
+            border: 1px solid #89b4fa;
+            width: 14px;
+            margin-top: -5px;
+            margin-bottom: -5px;
+            border-radius: 7px;
+        }
+        QSlider::handle:horizontal:hover {
+            background: #89b4fa;
+        }
         QScrollArea {
             background: transparent;
             border: none;
@@ -290,6 +331,7 @@ void MainWindow::onDebounceTimeout() {
 void MainWindow::triggerSearch() {
     QString q = search_input_->text().trimmed();
     if (q.isEmpty()) {
+        raw_results_.clear();
         all_results_.clear();
         text_results_.clear();
         image_results_.clear();
@@ -303,6 +345,7 @@ void MainWindow::triggerSearch() {
     req.action = IpcAction::SearchText;
     req.query = q.toStdString();
     req.limit = 40; // Retrieve enough results to populate all modalities
+    req.threshold = current_threshold_;
 
     active_query_mode_ = "Text (" + q + ")";
     stats_bar_->setText(QString("Searching for \"%1\"...").arg(q));
@@ -326,6 +369,7 @@ void MainWindow::onSelectImageQuery() {
     req.action = IpcAction::SearchImage;
     req.path = path.toStdString();
     req.limit = 40;
+    req.threshold = current_threshold_;
 
     stats_bar_->setText(QString("Visual similarity search for \"%1\"...").arg(path));
     search_worker_->requestSearch(req);
@@ -348,6 +392,7 @@ void MainWindow::onSelectAudioQuery() {
     req.action = IpcAction::SearchAudio;
     req.path = path.toStdString();
     req.limit = 40;
+    req.threshold = current_threshold_;
 
     stats_bar_->setText(QString("Acoustic similarity search for \"%1\"...").arg(path));
     search_worker_->requestSearch(req);
@@ -453,36 +498,9 @@ void MainWindow::onSearchCompleted(const IpcResponse& response) {
         return;
     }
 
-    all_results_ = response.results;
+    raw_results_ = response.results;
     last_latency_ms_ = response.latency_ms;
-
-    // Partition results by modality
-    text_results_.clear();
-    image_results_.clear();
-    audio_results_.clear();
-
-    for (const auto& item : all_results_) {
-        Modality m = detectResultModality(item);
-        if (m == Modality::Text) {
-            text_results_.push_back(item);
-        } else if (m == Modality::Image) {
-            image_results_.push_back(item);
-        } else if (m == Modality::Audio) {
-            audio_results_.push_back(item);
-        }
-    }
-
-    // Update filter tab labels
-    btn_tab_text_->setText(QString("📄 Text (%1)").arg(text_results_.size()));
-    btn_tab_image_->setText(QString("🖼️ Images (%1)").arg(image_results_.size()));
-    btn_tab_audio_->setText(QString("🎵 Audio (%1)").arg(audio_results_.size()));
-
-    renderResults();
-
-    stats_bar_->setText(QString("⚡ %1 results found in %2 ms | %3")
-        .arg(all_results_.size())
-        .arg(last_latency_ms_, 0, 'f', 2)
-        .arg(active_query_mode_));
+    applyThresholdFilter();
 }
 
 void MainWindow::onSearchError(const QString& error_msg) {
@@ -609,6 +627,7 @@ void MainWindow::dropEvent(QDropEvent* event) {
         req.action = IpcAction::SearchImage;
         req.path = file_path.toStdString();
         req.limit = 40;
+        req.threshold = current_threshold_;
         stats_bar_->setText(QString("Searching for dropped image: %1...").arg(fi.fileName()));
         search_worker_->requestSearch(req);
     } else if (ext == "wav" || ext == "mp3" || ext == "flac" || ext == "ogg" || ext == "m4a") {
@@ -618,6 +637,7 @@ void MainWindow::dropEvent(QDropEvent* event) {
         req.action = IpcAction::SearchAudio;
         req.path = file_path.toStdString();
         req.limit = 40;
+        req.threshold = current_threshold_;
         stats_bar_->setText(QString("Searching for dropped audio: %1...").arg(fi.fileName()));
         search_worker_->requestSearch(req);
     } else {
@@ -675,6 +695,7 @@ void MainWindow::onRemoveFileRequested(const SearchResult& item) {
 
     // Remove matching items from in-memory lists
     auto matches = [&](const SearchResult& r) { return r.filepath == path_to_remove; };
+    raw_results_.erase(std::remove_if(raw_results_.begin(), raw_results_.end(), matches), raw_results_.end());
     all_results_.erase(std::remove_if(all_results_.begin(), all_results_.end(), matches), all_results_.end());
     text_results_.erase(std::remove_if(text_results_.begin(), text_results_.end(), matches), text_results_.end());
     image_results_.erase(std::remove_if(image_results_.begin(), image_results_.end(), matches), image_results_.end());
@@ -687,6 +708,56 @@ void MainWindow::onRemoveFileRequested(const SearchResult& item) {
 
     renderResults();
     stats_bar_->setText(QString("Removed \"%1\" from search index.").arg(QString::fromStdString(item.filename)));
+}
+
+void MainWindow::onThresholdChanged(int value) {
+    current_threshold_ = static_cast<float>(value) / 100.0f;
+    label_threshold_val_->setText(QString("%1%").arg(value));
+    applyThresholdFilter();
+}
+
+void MainWindow::applyThresholdFilter() {
+    all_results_.clear();
+    text_results_.clear();
+    image_results_.clear();
+    audio_results_.clear();
+
+    for (const auto& item : raw_results_) {
+        Modality m = detectResultModality(item);
+        if (m == Modality::Image || m == Modality::Audio) {
+            if (current_threshold_ > 0.0f && item.score < current_threshold_) {
+                continue;
+            }
+        } else {
+            if (current_threshold_ > 0.0f) {
+                if (item.similarity > 0.0f && item.similarity < current_threshold_ && item.rank_lexical == 0) {
+                    continue;
+                }
+            }
+        }
+
+        all_results_.push_back(item);
+        if (m == Modality::Text) {
+            text_results_.push_back(item);
+        } else if (m == Modality::Image) {
+            image_results_.push_back(item);
+        } else if (m == Modality::Audio) {
+            audio_results_.push_back(item);
+        }
+    }
+
+    // Update filter tab labels
+    btn_tab_text_->setText(QString("📄 Text (%1)").arg(text_results_.size()));
+    btn_tab_image_->setText(QString("🖼️ Images (%1)").arg(image_results_.size()));
+    btn_tab_audio_->setText(QString("🎵 Audio (%1)").arg(audio_results_.size()));
+
+    renderResults();
+
+    stats_bar_->setText(QString("⚡ %1 results found in %2 ms | %3 (Threshold: %4%)")
+        .arg(all_results_.size())
+        .arg(last_latency_ms_, 0, 'f', 2)
+        .arg(active_query_mode_)
+        .arg(static_cast<int>(current_threshold_ * 100)));
 }
 
 } // namespace gemfinder

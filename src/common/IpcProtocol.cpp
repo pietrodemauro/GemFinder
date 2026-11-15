@@ -37,13 +37,13 @@ std::string serializeRequest(const IpcRequest& req) {
     std::string out = actionToString(req.action);
     switch (req.action) {
         case IpcAction::SearchText:
-            out += "\t" + std::to_string(req.limit) + "\t" + sanitizeString(req.query);
+            out += "\t" + std::to_string(req.limit) + "\t" + std::to_string(req.threshold) + "\t" + sanitizeString(req.query);
             break;
         case IpcAction::SearchImage:
-            out += "\t" + std::to_string(req.limit) + "\t" + sanitizeString(req.path);
+            out += "\t" + std::to_string(req.limit) + "\t" + std::to_string(req.threshold) + "\t" + sanitizeString(req.path);
             break;
         case IpcAction::SearchAudio:
-            out += "\t" + std::to_string(req.limit) + "\t" + sanitizeString(req.path);
+            out += "\t" + std::to_string(req.limit) + "\t" + std::to_string(req.threshold) + "\t" + sanitizeString(req.path);
             break;
         case IpcAction::IndexDirectory:
         case IpcAction::UnindexDirectory:
@@ -73,10 +73,20 @@ bool deserializeRequest(std::string_view raw, IpcRequest& out_req) {
 
     if (out_req.action == IpcAction::SearchText && parts.size() >= 3) {
         try { out_req.limit = std::stoul(parts[1]); } catch (...) { out_req.limit = 10; }
-        out_req.query = parts[2];
+        if (parts.size() >= 4) {
+            try { out_req.threshold = std::stof(parts[2]); } catch (...) { out_req.threshold = 0.0f; }
+            out_req.query = parts[3];
+        } else {
+            out_req.query = parts[2];
+        }
     } else if ((out_req.action == IpcAction::SearchImage || out_req.action == IpcAction::SearchAudio) && parts.size() >= 3) {
         try { out_req.limit = std::stoul(parts[1]); } catch (...) { out_req.limit = 10; }
-        out_req.path = parts[2];
+        if (parts.size() >= 4) {
+            try { out_req.threshold = std::stof(parts[2]); } catch (...) { out_req.threshold = 0.0f; }
+            out_req.path = parts[3];
+        } else {
+            out_req.path = parts[2];
+        }
     } else if ((out_req.action == IpcAction::IndexDirectory || out_req.action == IpcAction::UnindexDirectory || out_req.action == IpcAction::UnindexFile) && parts.size() >= 2) {
         out_req.path = parts[1];
     } else if (out_req.action == IpcAction::ConfigureEngine && parts.size() >= 2) {
@@ -118,6 +128,7 @@ std::string serializeResponse(const IpcResponse& resp) {
                sanitizeString(r.chunk_type) + "\t" +
                std::to_string(r.rank_vector) + "\t" +
                std::to_string(r.rank_lexical) + "\t" +
+               std::to_string(r.similarity) + "\t" +
                sanitizeString(r.preview_text) + "\n";
     }
 
@@ -177,7 +188,12 @@ bool deserializeResponse(std::string_view raw, IpcResponse& out_resp) {
                     sr.chunk_type = cols[6];
                     sr.rank_vector = std::stoi(cols[7]);
                     sr.rank_lexical = std::stoi(cols[8]);
-                    sr.preview_text = cols[9];
+                    if (cols.size() >= 11) {
+                        sr.similarity = std::stof(cols[9]);
+                        sr.preview_text = cols[10];
+                    } else {
+                        sr.preview_text = cols[9];
+                    }
                 } catch (...) {
                     continue;
                 }
