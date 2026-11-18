@@ -48,6 +48,7 @@ std::string serializeRequest(const IpcRequest& req) {
         case IpcAction::IndexDirectory:
         case IpcAction::UnindexDirectory:
         case IpcAction::UnindexFile:
+        case IpcAction::IndexFile:
             out += "\t" + sanitizeString(req.path);
             break;
         case IpcAction::ConfigureEngine:
@@ -87,7 +88,7 @@ bool deserializeRequest(std::string_view raw, IpcRequest& out_req) {
         } else {
             out_req.path = parts[2];
         }
-    } else if ((out_req.action == IpcAction::IndexDirectory || out_req.action == IpcAction::UnindexDirectory || out_req.action == IpcAction::UnindexFile) && parts.size() >= 2) {
+    } else if ((out_req.action == IpcAction::IndexDirectory || out_req.action == IpcAction::UnindexDirectory || out_req.action == IpcAction::UnindexFile || out_req.action == IpcAction::IndexFile) && parts.size() >= 2) {
         out_req.path = parts[1];
     } else if (out_req.action == IpcAction::ConfigureEngine && parts.size() >= 2) {
         out_req.use_gpu = (parts[1] == "gpu");
@@ -112,7 +113,8 @@ std::string serializeResponse(const IpcResponse& resp) {
         // Stats response or Ack response (IndexDirectory, UnindexDirectory, etc.)
         out += "\tSTATS\t" + std::to_string(resp.total_files) +
                "\t" + std::to_string(resp.total_chunks) +
-               "\t" + sanitizeString(resp.model_name) + "\n";
+               "\t" + sanitizeString(resp.model_name) +
+               "\t" + std::to_string(resp.skipped_files) + "\n";
         return out;
     }
 
@@ -129,6 +131,7 @@ std::string serializeResponse(const IpcResponse& resp) {
                std::to_string(r.rank_vector) + "\t" +
                std::to_string(r.rank_lexical) + "\t" +
                std::to_string(r.similarity) + "\t" +
+               std::string(r.modified_on_disk ? "1" : "0") + "\t" +
                sanitizeString(r.preview_text) + "\n";
     }
 
@@ -163,6 +166,9 @@ bool deserializeResponse(std::string_view raw, IpcResponse& out_resp) {
         try { out_resp.total_files = std::stoul(header[3]); } catch (...) {}
         try { out_resp.total_chunks = std::stoul(header[4]); } catch (...) {}
         out_resp.model_name = header[5];
+        if (header.size() >= 7) {
+            try { out_resp.skipped_files = std::stoul(header[6]); } catch (...) {}
+        }
         return true;
     }
 
@@ -188,7 +194,11 @@ bool deserializeResponse(std::string_view raw, IpcResponse& out_resp) {
                     sr.chunk_type = cols[6];
                     sr.rank_vector = std::stoi(cols[7]);
                     sr.rank_lexical = std::stoi(cols[8]);
-                    if (cols.size() >= 11) {
+                    if (cols.size() >= 12) {
+                        sr.similarity = std::stof(cols[9]);
+                        sr.modified_on_disk = (cols[10] == "1");
+                        sr.preview_text = cols[11];
+                    } else if (cols.size() >= 11) {
                         sr.similarity = std::stof(cols[9]);
                         sr.preview_text = cols[10];
                     } else {

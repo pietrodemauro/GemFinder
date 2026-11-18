@@ -47,6 +47,7 @@ MainWindow::MainWindow(std::optional<fs::path> model_path, int n_threads, QWidge
     connect(btn_audio_search_, &QPushButton::clicked, this, &MainWindow::onSelectAudioQuery);
     connect(btn_index_dir_, &QPushButton::clicked, this, &MainWindow::onIndexDirectory);
     connect(btn_unindex_dir_, &QPushButton::clicked, this, &MainWindow::onUnindexDirectory);
+    connect(btn_reindex_file_, &QPushButton::clicked, this, &MainWindow::onReindexFileManual);
 
     // Filter Buttons Signals
     connect(btn_tab_all_, &QPushButton::clicked, this, [this]() { onFilterChanged(DisplayFilter::AllGrouped); });
@@ -128,6 +129,10 @@ void MainWindow::setupUi() {
     btn_index_dir_ = new QPushButton("📁 Index Directory...", this);
     btn_index_dir_->setToolTip("Select and index a directory into local database / daemon");
     filter_bar->addWidget(btn_index_dir_);
+
+    btn_reindex_file_ = new QPushButton("🔄 Re-index File...", this);
+    btn_reindex_file_->setToolTip("Select and re-index a single file (e.g. after modifying it)");
+    filter_bar->addWidget(btn_reindex_file_);
 
     btn_unindex_dir_ = new QPushButton("🗑️ Remove Directory...", this);
     btn_unindex_dir_->setToolTip("Remove indexed directory from database to re-index from scratch");
@@ -444,18 +449,33 @@ void MainWindow::onUnindexDirectory() {
 
 void MainWindow::onSearchCompleted(const IpcResponse& response) {
     if (response.action == IpcAction::IndexDirectory) {
-        stats_bar_->setText(QString("✅ Indexing completed: %1 files indexed (%2 chunks) in %3 ms")
+        stats_bar_->setText(QString("✅ Indexing completed: %1 new files indexed, %2 skipped (%3 chunks) in %4 ms")
             .arg(response.total_files)
+            .arg(response.skipped_files)
             .arg(response.total_chunks)
             .arg(response.latency_ms, 0, 'f', 1));
         QMessageBox::information(
             this,
             "Indexing Completed",
-            QString("The directory was indexed successfully!\n\nFiles indexed: %1\nTotal chunks: %2\nTime elapsed: %3 ms")
+            QString("The directory was processed successfully!\n\nNew files indexed: %1\nExisting files skipped: %2\nTotal chunks: %3\nTime elapsed: %4 ms")
                 .arg(response.total_files)
+                .arg(response.skipped_files)
                 .arg(response.total_chunks)
                 .arg(response.latency_ms, 0, 'f', 1)
         );
+        return;
+    }
+
+    if (response.action == IpcAction::IndexFile) {
+        stats_bar_->setText(QString("✅ File re-indexed successfully in %1 ms")
+            .arg(response.latency_ms, 0, 'f', 1));
+        QMessageBox::information(
+            this,
+            "Re-indexing Completed",
+            QString("The file was re-indexed successfully!\n\nTime elapsed: %1 ms")
+                .arg(response.latency_ms, 0, 'f', 1)
+        );
+        triggerSearch();
         return;
     }
 
@@ -563,6 +583,7 @@ void MainWindow::renderResults() {
         for (const auto& item : items) {
             auto* card = new ResultCard(item, results_container_);
             connect(card, &ResultCard::removeRequested, this, &MainWindow::onRemoveFileRequested);
+            connect(card, &ResultCard::reindexRequested, this, &MainWindow::onReindexFileRequested);
             connect(card, &ResultCard::openFolderRequested, this, [](const SearchResult& res) {
                 if (!res.filepath.empty()) {
                     QFileInfo fi(QString::fromStdString(res.filepath));
@@ -708,6 +729,45 @@ void MainWindow::onRemoveFileRequested(const SearchResult& item) {
 
     renderResults();
     stats_bar_->setText(QString("Removed \"%1\" from search index.").arg(QString::fromStdString(item.filename)));
+}
+
+void MainWindow::onReindexFileRequested(const SearchResult& item) {
+    auto reply = QMessageBox::question(
+        this,
+        "Re-index File",
+        QString("Do you want to re-index \"%1\"?\n\nPath:\n%2\n\nThis will re-extract content and update its vector embedding.")
+            .arg(QString::fromStdString(item.filename))
+            .arg(QString::fromStdString(item.filepath)),
+        QMessageBox::Yes | QMessageBox::No,
+        QMessageBox::Yes
+    );
+
+    if (reply != QMessageBox::Yes) {
+        return;
+    }
+
+    stats_bar_->setText(QString("🔄 Re-indexing \"%1\"...").arg(QString::fromStdString(item.filename)));
+    IpcRequest req;
+    req.action = IpcAction::IndexFile;
+    req.path = item.filepath;
+    search_worker_->requestAction(req);
+}
+
+void MainWindow::onReindexFileManual() {
+    QString file = QFileDialog::getOpenFileName(
+        this,
+        "Select file to re-index",
+        QDir::homePath(),
+        "Supported Files (*.pdf *.txt *.md *.csv *.json *.html *.cpp *.h *.py *.png *.jpg *.jpeg *.bmp *.webp *.wav *.mp3 *.flac *.ogg *.m4a);;All Files (*)"
+    );
+
+    if (file.isEmpty()) return;
+
+    stats_bar_->setText(QString("🔄 Re-indexing \"%1\"...").arg(QFileInfo(file).fileName()));
+    IpcRequest req;
+    req.action = IpcAction::IndexFile;
+    req.path = file.toStdString();
+    search_worker_->requestAction(req);
 }
 
 void MainWindow::onThresholdChanged(int value) {

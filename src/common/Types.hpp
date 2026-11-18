@@ -112,6 +112,9 @@ struct SearchResult {
     float similarity{0.0f};
     int rank_vector{0};
     int rank_lexical{0};
+    int64_t file_mtime{0};
+    uint64_t file_size{0};
+    bool modified_on_disk{false};
 };
 
 } // namespace gemfinder

@@ -19,6 +19,7 @@ enum class IpcAction {
     IndexDirectory,
     UnindexDirectory,
     UnindexFile,
+    IndexFile,
     ConfigureEngine,
     GetStats,
     Unknown
@@ -33,6 +34,7 @@ enum class IpcAction {
         case IpcAction::IndexDirectory:   return "index_dir";
         case IpcAction::UnindexDirectory: return "unindex_dir";
         case IpcAction::UnindexFile:       return "unindex_file";
+        case IpcAction::IndexFile:         return "index_file";
         case IpcAction::ConfigureEngine:  return "configure_engine";
         case IpcAction::GetStats:         return "get_stats";
         case IpcAction::Unknown:          return "unknown";
@@ -48,6 +50,7 @@ enum class IpcAction {
     if (sv == "index_dir")        return IpcAction::IndexDirectory;
     if (sv == "unindex_dir")      return IpcAction::UnindexDirectory;
     if (sv == "unindex_file")     return IpcAction::UnindexFile;
+    if (sv == "index_file")       return IpcAction::IndexFile;
     if (sv == "configure_engine") return IpcAction::ConfigureEngine;
     if (sv == "get_stats")        return IpcAction::GetStats;
     return IpcAction::Unknown;
@@ -71,6 +74,7 @@ struct IpcResponse {
     std::vector<SearchResult> results;
     size_t total_files{0};
     size_t total_chunks{0};
+    size_t skipped_files{0};
     std::string model_name;
 };
 

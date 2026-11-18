@@ -1,6 +1,7 @@
 #include "gui/SearchWorker.hpp"
 #include "inference/EngineFactory.hpp"
 #include "common/Logger.hpp"
+#include "common/Paths.hpp"
 
 #include <chrono>
 
@@ -83,16 +84,9 @@ IpcResponse SearchWorker::runLocalSearch(const IpcRequest& req) {
     IpcResponse resp;
     resp.success = false;
 
-    // Check if local DB exists
-    fs::path db_path = "gemfinder_metadata.db";
-    if (!fs::exists(db_path) && fs::exists("gemfinder.db")) {
-        db_path = "gemfinder.db";
-    }
-    fs::path vec_path = db_path.parent_path() / (db_path.stem().string() + ".usearch");
-    if (!fs::exists(db_path)) {
-        resp.error_message = "Daemon is not running and no local database found (gemfinder_metadata.db).";
-        return resp;
-    }
+    // Use standard persistent DB path
+    fs::path db_path = getDefaultDatabasePath();
+    fs::path vec_path = getVectorStorePath(db_path);
 
     if (!local_engine_) {
         auto engine = EngineFactory::createEngine(model_path_, kEmbeddingDim, n_threads_, use_gpu_);
@@ -119,7 +113,19 @@ IpcResponse SearchWorker::runLocalSearch(const IpcRequest& req) {
             auto stats = local_engine_->indexDirectory(req.path);
             resp.total_files = stats.indexed_files;
             resp.total_chunks = stats.indexed_chunks;
+            resp.skipped_files = stats.skipped_files;
             resp.success = true;
+        } else if (req.action == IpcAction::IndexFile) {
+            bool ok = local_engine_->indexSingleFile(req.path);
+            if (ok) {
+                local_engine_->save();
+                resp.total_files = 1;
+                resp.total_chunks = 1;
+                resp.success = true;
+            } else {
+                resp.success = false;
+                resp.error_message = "Failed to index file: " + req.path;
+            }
         } else if (req.action == IpcAction::UnindexDirectory) {
             size_t removed = local_engine_->removeDirectory(req.path);
             resp.total_files = removed;
@@ -178,6 +184,8 @@ void SearchWorker::run() {
             int timeout_ms = 4000;
             if (req.action == IpcAction::IndexDirectory || req.action == IpcAction::UnindexDirectory) {
                 timeout_ms = 120000;
+            } else if (req.action == IpcAction::IndexFile) {
+                timeout_ms = 30000;
             } else if (req.action == IpcAction::ConfigureEngine) {
                 timeout_ms = 30000;
             }

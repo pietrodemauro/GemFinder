@@ -147,6 +147,13 @@ void ResultCard::setupUi() {
     score_badge_->setStyleSheet("background-color: #494d64; color: #f5a97f; padding: 2px 6px; border-radius: 4px; font-size: 11px;");
     header_layout->addWidget(score_badge_);
 
+    if (result_.modified_on_disk) {
+        auto* mod_badge = new QLabel("⚠️ Modified on disk", this);
+        mod_badge->setStyleSheet("background-color: #f5a97f; color: #1e2030; padding: 2px 6px; border-radius: 4px; font-size: 11px; font-weight: bold;");
+        mod_badge->setToolTip("This file was modified on disk since it was indexed. Click 'Re-index' to update.");
+        header_layout->addWidget(mod_badge);
+    }
+
     header_layout->addStretch();
     details_layout->addLayout(header_layout);
 
@@ -203,6 +210,18 @@ void ResultCard::setupUi() {
     connect(btn_open_file_, &QPushButton::clicked, this, &ResultCard::openFile);
     actions_layout->addWidget(btn_open_file_);
 
+    btn_reindex_ = new QPushButton("🔄 Re-index", this);
+    btn_reindex_->setToolTip("Re-index this file into the search index");
+    btn_reindex_->setCursor(Qt::PointingHandCursor);
+    btn_reindex_->setStyleSheet(
+        "QPushButton { background-color: #363a4f; color: #eed49f; border: 1px solid #494d64; border-radius: 6px; padding: 4px 10px; font-size: 11px; } "
+        "QPushButton:hover { background-color: #eed49f; color: #1e2030; }"
+    );
+    connect(btn_reindex_, &QPushButton::clicked, this, [this]() {
+        emit reindexRequested(result_);
+    });
+    actions_layout->addWidget(btn_reindex_);
+
     btn_remove_ = new QPushButton("🗑️ Remove", this);
     btn_remove_->setToolTip("Remove this file from the search index");
     btn_remove_->setCursor(Qt::PointingHandCursor);
@@ -257,6 +276,7 @@ void ResultCard::contextMenuEvent(QContextMenuEvent* event) {
 
     auto* act_folder = menu.addAction("📁 Show in Folder");
     auto* act_open = menu.addAction("📂 Open File");
+    auto* act_reindex = menu.addAction("🔄 Re-index File");
     auto* act_remove = menu.addAction("🗑️ Remove from Index");
     menu.addSeparator();
     auto* act_copy_path = menu.addAction("📋 Copy Absolute Path");
@@ -267,6 +287,8 @@ void ResultCard::contextMenuEvent(QContextMenuEvent* event) {
         openContainingFolder();
     } else if (selected == act_open) {
         openFile();
+    } else if (selected == act_reindex) {
+        emit reindexRequested(result_);
     } else if (selected == act_remove) {
         emit removeRequested(result_);
     } else if (selected == act_copy_path) {

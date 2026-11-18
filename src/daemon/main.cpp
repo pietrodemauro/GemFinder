@@ -1,6 +1,7 @@
 #include "common/Version.hpp"
 #include "common/Logger.hpp"
 #include "common/IpcProtocol.hpp"
+#include "common/Paths.hpp"
 #include "daemon/IpcServer.hpp"
 #include "daemon/FileWatcher.hpp"
 #include "engine/SearchEngine.hpp"
@@ -24,7 +25,7 @@ int main(int argc, char* argv[]) {
     std::signal(SIGINT, signalHandler);
     std::signal(SIGTERM, signalHandler);
 
-    fs::path db_path = "gemfinder_metadata.db";
+    fs::path db_path = gemfinder::getDefaultDatabasePath();
     fs::path socket_path = gemfinder::kDefaultSocketPath;
     std::optional<fs::path> model_path = std::nullopt;
     std::vector<fs::path> watch_dirs;
@@ -45,7 +46,7 @@ int main(int argc, char* argv[]) {
         }
     }
 
-    fs::path vec_path = db_path.parent_path() / (db_path.stem().string() + ".usearch");
+    fs::path vec_path = gemfinder::getVectorStorePath(db_path);
 
     gemfinder::Logger::info("Starting " + std::string(gemfinder::kProjectName) +
                             "-daemon (v" + std::string(gemfinder::kVersion) + ")...");
@@ -87,7 +88,21 @@ int main(int argc, char* argv[]) {
                 auto stats = engine->indexDirectory(req.path);
                 resp.total_files = stats.indexed_files;
                 resp.total_chunks = stats.indexed_chunks;
+                resp.skipped_files = stats.skipped_files;
                 resp.success = true;
+                break;
+            }
+            case gemfinder::IpcAction::IndexFile: {
+                bool ok = engine->indexSingleFile(req.path);
+                if (ok) {
+                    engine->save();
+                    resp.total_files = 1;
+                    resp.total_chunks = 1;
+                    resp.success = true;
+                } else {
+                    resp.success = false;
+                    resp.error_message = "Failed to index file: " + req.path;
+                }
                 break;
             }
             case gemfinder::IpcAction::UnindexDirectory: {
@@ -141,10 +156,14 @@ int main(int argc, char* argv[]) {
         if (ev == gemfinder::FileEvent::Deleted) {
             gemfinder::Logger::info("[WATCHER] Removed file: " + path.filename().string());
             engine->removeFile(path);
-        } else {
-            gemfinder::Logger::info("[WATCHER] Re-indexing file: " + path.filename().string());
+        } else if (ev == gemfinder::FileEvent::Created) {
+            // Only auto-index brand new files
+            gemfinder::Logger::info("[WATCHER] New file detected, indexing: " + path.filename().string());
             engine->indexSingleFile(path);
             engine->save();
+        } else {
+            // Modified on disk: do NOT auto-reindex, user requests manual re-index
+            gemfinder::Logger::info("[WATCHER] File modified on disk (manual re-index required): " + path.filename().string());
         }
     });
 

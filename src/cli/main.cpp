@@ -8,6 +8,7 @@
 #include "inference/EngineFactory.hpp"
 #include "engine/SearchEngine.hpp"
 #include "daemon/IpcClient.hpp"
+#include "common/Paths.hpp"
 #include <iostream>
 #include <string>
 #include <vector>
@@ -20,6 +21,7 @@ void printUsage(std::string_view progName) {
     std::cout << progName << " - " << gemfinder::kProjectDescription << "\n\n"
               << "Usage:\n"
               << "  " << progName << " index <directory> [--model <model.gguf>] [--threads <N>] [--db <path>] [--force]\n"
+              << "  " << progName << " reindex-file <file> [--model <model.gguf>] [--threads <N>] [--db <path>] Re-index single file\n"
               << "  " << progName << " unindex <directory> [--db <path>] Remove all files in directory from index\n"
               << "  " << progName << " search <query_text> [--limit <N>] [--threshold <0.0-1.0>] [--threads <N>] [--model <model.gguf>] [--db <path>]\n"
               << "  " << progName << " search --image <file.jpg> [--limit <N>] [--threshold <0.0-1.0>] [--threads <N>] [--model <model.gguf>] [--db <path>]\n"
@@ -146,8 +148,8 @@ int main(int argc, char* argv[]) {
     }
 
     // Default paths for DB and Vector store
-    fs::path default_db = "gemfinder_metadata.db";
-    fs::path default_vec = "gemfinder_vectors.usearch";
+    fs::path default_db = gemfinder::getDefaultDatabasePath();
+    fs::path default_vec = gemfinder::getVectorStorePath(default_db);
 
     // Parse options: --db, --model, --limit, --force
     auto getOption = [&](std::string_view flag) -> std::optional<std::string> {
@@ -167,7 +169,7 @@ int main(int argc, char* argv[]) {
     };
 
     fs::path db_path = getOption("--db").value_or(default_db.string());
-    fs::path vec_path = db_path.parent_path() / (db_path.stem().string() + ".usearch");
+    fs::path vec_path = gemfinder::getVectorStorePath(db_path);
     std::optional<fs::path> model_path = getOption("--model");
 
     int n_threads = 0;
@@ -200,15 +202,61 @@ int main(int argc, char* argv[]) {
         });
 
         std::cout << "\n\n=== Indexing Results ===\n";
-        std::cout << "Files scanned:      " << stats.scanned_files << "\n";
-        std::cout << "Files indexed:      " << stats.indexed_files << "\n";
-        std::cout << "Unmodified files:   " << stats.skipped_files << " (skipped instantly)\n";
-        std::cout << "Chunks generated:   " << stats.indexed_chunks << "\n";
-        std::cout << "Errors:             " << stats.error_files << "\n";
-        std::cout << "Total elapsed time: " << std::fixed << std::setprecision(2) << stats.elapsed_seconds << " seconds\n";
-        std::cout << "Database saved:     " << db_path << "\n";
-        std::cout << "Vector index:       " << vec_path << "\n";
+        std::cout << "Files scanned:          " << stats.scanned_files << "\n";
+        std::cout << "New files indexed:      " << stats.indexed_files << "\n";
+        std::cout << "Existing files skipped: " << stats.skipped_files << " (skipped)\n";
+        std::cout << "Modified files skipped: " << stats.modified_files << " (manual re-index required)\n";
+        std::cout << "Chunks generated:       " << stats.indexed_chunks << "\n";
+        std::cout << "Errors:                 " << stats.error_files << "\n";
+        std::cout << "Total elapsed time:     " << std::fixed << std::setprecision(2) << stats.elapsed_seconds << " seconds\n";
+        std::cout << "Database:               " << db_path << "\n";
+        std::cout << "Vector index:           " << vec_path << "\n";
         return 0;
+    }
+
+    // Command: reindex-file <file>
+    if ((command == "reindex-file" || command == "index-file") && argc >= 3) {
+        fs::path target_file = argv[2];
+        if (!fs::exists(target_file) || fs::is_directory(target_file)) {
+            gemfinder::Logger::error("File not found or is a directory: " + target_file.string());
+            return 1;
+        }
+
+        fs::path sock_path = getOption("--socket").value_or(std::string(gemfinder::kDefaultSocketPath));
+        gemfinder::IpcClient client(sock_path);
+
+        if (client.isDaemonRunning()) {
+            gemfinder::IpcRequest req;
+            req.action = gemfinder::IpcAction::IndexFile;
+            req.path = target_file;
+            auto resp_opt = client.send(req, 30000);
+            if (resp_opt && resp_opt->success) {
+                std::cout << "File re-indexed successfully via daemon: " << target_file << " ("
+                          << std::fixed << std::setprecision(1) << resp_opt->latency_ms << " ms)\n";
+                return 0;
+            } else {
+                gemfinder::Logger::error("Daemon IPC error: " + (resp_opt ? resp_opt->error_message : "timeout"));
+                return 1;
+            }
+        } else {
+            gemfinder::Logger::info("Initializing search engine for re-indexing single file...");
+            auto inf = gemfinder::EngineFactory::createEngine(model_path, gemfinder::kEmbeddingDim, n_threads);
+            gemfinder::SearchEngine engine(db_path, vec_path, std::move(inf));
+            if (!engine.initialize()) {
+                return 1;
+            }
+
+            bool ok = engine.indexSingleFile(target_file);
+            if (ok) {
+                engine.save();
+                std::cout << "File re-indexed successfully: " << target_file << "\n";
+                std::cout << "Database updated: " << db_path << "\n";
+                return 0;
+            } else {
+                gemfinder::Logger::error("Failed to re-index file: " + target_file.string());
+                return 1;
+            }
+        }
     }
 
     // Command: unindex <directory>
@@ -388,6 +436,17 @@ int main(int argc, char* argv[]) {
                 pending_count++;
             } else {
                 indexed_count++;
+                std::error_code ec;
+                if (!fs::exists(f.filepath, ec)) {
+                    status_badge = "[Missing on disk]";
+                } else {
+                    auto cur_size = fs::file_size(f.filepath, ec);
+                    auto cur_mtime = std::chrono::duration_cast<std::chrono::seconds>(
+                        fs::last_write_time(f.filepath, ec).time_since_epoch()).count();
+                    if (!ec && (cur_size != f.file_size || cur_mtime != f.mtime)) {
+                        status_badge = "[Modified on disk - Run reindex-file]";
+                    }
+                }
             }
 
             std::cout << std::setw(4) << (i + 1) << ". " << mod_icon << " " << f.filename

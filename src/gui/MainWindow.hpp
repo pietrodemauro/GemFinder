@@ -51,6 +51,8 @@ private slots:
     void onSelectAudioQuery();
     void onIndexDirectory();
     void onUnindexDirectory();
+    void onReindexFileRequested(const SearchResult& result);
+    void onReindexFileManual();
     void onFilterChanged(DisplayFilter filter);
     void onDeviceChanged(int index);
     void onChangeModel();
@@ -71,6 +73,7 @@ private:
     QPushButton* btn_audio_search_{nullptr};
     QPushButton* btn_index_dir_{nullptr};
     QPushButton* btn_unindex_dir_{nullptr};
+    QPushButton* btn_reindex_file_{nullptr};
     QLabel* daemon_status_badge_{nullptr};
     QLabel* stats_bar_{nullptr};
 

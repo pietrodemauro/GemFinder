@@ -24,6 +24,7 @@ signals:
     void cardClicked(const SearchResult& result);
     void cardDoubleClicked(const SearchResult& result);
     void removeRequested(const SearchResult& result);
+    void reindexRequested(const SearchResult& result);
     void openFolderRequested(const SearchResult& result);
 
 public slots:
@@ -50,6 +51,7 @@ private:
     QLabel* offset_badge_{nullptr};
     QPushButton* btn_open_folder_{nullptr};
     QPushButton* btn_open_file_{nullptr};
+    QPushButton* btn_reindex_{nullptr};
     QPushButton* btn_remove_{nullptr};
 };
 

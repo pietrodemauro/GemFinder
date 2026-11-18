@@ -20,6 +20,7 @@ struct IndexStats {
     size_t scanned_files{0};
     size_t indexed_files{0};
     size_t skipped_files{0};
+    size_t modified_files{0};
     size_t indexed_chunks{0};
     size_t error_files{0};
     double elapsed_seconds{0.0};

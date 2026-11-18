@@ -102,27 +102,17 @@ IndexStats SearchEngine::indexDirectory(
 
         int64_t mtime = getFileMtime(file_path);
 
-        // Check if file is already indexed, unmodified, and its vectors are present in vector store
+        // Check if file is already scanned and indexed:
+        // Only scan NEW files. Existing files (even if modified) are skipped;
+        // modified files are re-scanned only manually upon user request.
         if (!force_reindex) {
             auto existing = storage_->database().getFileByPath(file_path);
-            if (existing.has_value()) {
-                bool vectors_present = true;
-                auto chunks = storage_->database().getChunksByFileId(existing->id);
-                if (chunks.empty()) {
-                    vectors_present = false;
-                } else {
-                    for (const auto& c : chunks) {
-                        if (!storage_->vectorStore().contains(c.id)) {
-                            vectors_present = false;
-                            break;
-                        }
-                    }
+            if (existing.has_value() && existing->status == IndexStatus::Indexed) {
+                if (existing->file_size != size || existing->mtime != mtime) {
+                    stats.modified_files++;
                 }
-
-                if (vectors_present && existing->file_size == size && existing->mtime == mtime && existing->status == IndexStatus::Indexed) {
-                    stats.skipped_files++;
-                    continue;
-                }
+                stats.skipped_files++;
+                continue;
             }
         }
 

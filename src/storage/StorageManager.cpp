@@ -239,6 +239,17 @@ std::vector<SearchResult> StorageManager::hybridSearch(
         sr.similarity = cand.vector_similarity;
         sr.rank_vector = cand.rank_vector;
         sr.rank_lexical = cand.rank_lexical;
+        sr.file_mtime = file_opt->mtime;
+        sr.file_size = file_opt->file_size;
+
+        std::error_code ec;
+        if (fs::exists(file_opt->filepath, ec)) {
+            int64_t disk_mtime = getFileMtime(file_opt->filepath);
+            uint64_t disk_size = fs::file_size(file_opt->filepath, ec);
+            if (!ec && (disk_mtime != file_opt->mtime || disk_size != file_opt->file_size)) {
+                sr.modified_on_disk = true;
+            }
+        }
 
         final_results.push_back(std::move(sr));
     }
